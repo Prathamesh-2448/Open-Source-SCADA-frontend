@@ -1,0 +1,92 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── ReactFlow: let custom nodes size themselves naturally ─────── */
+.react-flow__node {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  font-size: inherit !important;
+  overflow: visible !important;
+}
+
+.react-flow__node-plcNode {
+  overflow: visible !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* ── handles ───────────────────────────────────────────────────── */
+.react-flow__handle {
+  cursor: crosshair !important;
+}
+
+/* ── edges ─────────────────────────────────────────────────────── */
+.react-flow__edge-path {
+  stroke-width: 2 !important;
+}
+
+/* ── controls ──────────────────────────────────────────────────── */
+.react-flow__controls {
+  background: transparent;
+}
+
+.react-flow__controls-button {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #334155 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #334155 !important;
+}
+
+/* ── prevent global reset from collapsing inputs inside nodes ───── */
+.react-flow__node input,
+.react-flow__node select,
+.react-flow__node textarea {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+/* ── Water Treatment node — zero padding/border ──────────────── */
+.react-flow__node-waterNode {
+  overflow: visible !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* ── Pipe flow animation ─────────────────────────────────────── */
+@keyframes pipeFlow {
+  0%   { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -40; }
+}
+
+.pipe-flow-animated {
+  animation: pipeFlow 1.5s linear infinite;
+}
+
+/* ── Pipe edge: don't apply global edge-path stroke-width ────── */
+.react-flow__edge.react-flow__edge-pipeEdge .react-flow__edge-path {
+  stroke-width: inherit !important;
+}

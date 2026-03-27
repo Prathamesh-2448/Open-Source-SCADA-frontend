@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Realistic Pipes, Cables & Wires Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0a0e1a;
+    color: #e2e8f0;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 56px;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+    z-index: 100;
+  }
+  .toolbar h1 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-right: 24px;
+    white-space: nowrap;
+  }
+  .conn-btn {
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background: #1e293b;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .conn-btn:hover { background: #334155; color: #e2e8f0; }
+  .conn-btn.active { border-color: var(--accent); color: #fff; background: rgba(255,255,255,0.08); }
+  .conn-btn .preview-line {
+    width: 28px; height: 12px;
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .instructions {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: #64748b;
+    text-align: right;
+  }
+
+  /* ── CANVAS ── */
+  .canvas-container {
+    position: fixed;
+    top: 56px; left: 0; right: 0; bottom: 0;
+  }
+  svg.main-canvas {
+    width: 100%;
+    height: 100%;
+    background: #0f1729;
+  }
+
+  /* ── GRID ── */
+  .grid-pattern { stroke: #1a2340; stroke-width: 0.5; }
+
+  /* ── NODE BOXES ── */
+  .node-body {
+    cursor: grab;
+    user-select: none;
+  }
+  .node-body:active { cursor: grabbing; }
+
+  /* ── PORT CIRCLES ── */
+  .port {
+    cursor: crosshair;
+    transition: r 0.15s, fill-opacity 0.15s;
+  }
+  .port:hover {
+    r: 10;
+    fill-opacity: 1;
+  }
+
+  /* ── FLOW ANIMATIONS ── */
+  @keyframes flowForward {
+    0%   { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -40; }
+  }
+  @keyframes flowSlow {
+    0%   { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -60; }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { stroke-opacity: 0.15; }
+    50%      { stroke-opacity: 0.5; }
+  }
+  .flow-animated {
+    animation: flowForward 1.2s linear infinite;
+  }
+  .flow-slow {
+    animation: flowSlow 2s linear infinite;
+  }
+  .pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── TOOLBAR ── -->
+<div class="toolbar">
+  <h1>🔧 Connection Types Demo</h1>
+  <button class="conn-btn active" data-type="pipe_water" style="--accent:#3b82f6;" onclick="selectType(this)">
+    <svg class="preview-line" viewBox="0 0 28 12"><rect y="1" width="28" height="10" rx="5" fill="#475569"/><rect y="3" width="28" height="6" rx="3" fill="#3b82f6" opacity="0.6"/></svg>
+    Water Pipe
+  </button>
+  <button class="conn-btn" data-type="pipe_gas" style="--accent:#eab308;" onclick="selectType(this)">
+    <svg class="preview-line" viewBox="0 0 28 12"><rect y="1" width="28" height="10" rx="5" fill="#854d0e"/><rect y="3" width="28" height="6" rx="3" fill="#eab308"/></svg>
+    Gas Pipe
+  </button>
+  <button class="conn-btn" data-type="wire_copper" style="--accent:#f97316;" onclick="selectType(this)">
+    <svg class="preview-line" viewBox="0 0 28 12"><rect y="4" width="28" height="4" rx="2" fill="#78350f"/><rect y="5" width="28" height="2" rx="1" fill="#fb923c"/></svg>
+    Copper Wire
+  </button>
+  <button class="conn-btn" data-type="cable_power" style="--accent:#ef4444;" onclick="selectType(this)">
+    <svg class="preview-line" viewBox="0 0 28 12"><rect y="2" width="28" height="8" rx="4" fill="#1c1917"/><rect y="4" width="28" height="4" rx="2" fill="#ef4444" opacity="0.7"/></svg>
+    Power Cable
+  </button>
+  <button class="conn-btn" data-type="cable_fiber" style="--accent:#22c55e;" onclick="selectType(this)">
+    <svg class="preview-line" viewBox="0 0 28 12"><rect y="3" width="28" height="6" rx="3" fill="#0f172a"/><rect y="5" width="28" height="2" rx="1" fill="#22c55e"/></svg>
+    Fiber Optic
+  </button>
+  <button class="conn-btn" data-type="pipe_steam" style="--accent:#a78bfa;" onclick="selectType(this)">
+    <svg class="preview-line" viewBox="0 0 28 12"><rect y="1" width="28" height="10" rx="5" fill="#6b7280"/><rect y="3" width="28" height="6" rx="3" fill="#a78bfa" opacity="0.5"/></svg>
+    Steam Pipe
+  </button>
+  <div class="instructions">
+    Drag ports to connect • Right-click connection to delete<br>
+    Drag nodes to move
+  </div>
+</div>
+
+<!-- ── MAIN CANVAS ── -->
+<div class="canvas-container">
+<svg class="main-canvas" id="canvas">
+  <defs>
+    <!-- ═══ GRADIENT: Water Pipe (cylindrical 3D) ═══ -->
+    <linearGradient id="grad-pipe-water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#94a3b8" stop-opacity="0.6"/>
+      <stop offset="20%"  stop-color="#64748b"/>
+      <stop offset="50%"  stop-color="#475569"/>
+      <stop offset="80%"  stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.8"/>
+    </linearGradient>
+    <linearGradient id="grad-pipe-water-h" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#93c5fd" stop-opacity="0.5"/>
+      <stop offset="50%"  stop-color="#3b82f6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1d4ed8" stop-opacity="0.2"/>
+    </linearGradient>
+
+    <!-- ═══ GRADIENT: Gas Pipe (yellow cylinder) ═══ -->
+    <linearGradient id="grad-pipe-gas" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fde68a"/>
+      <stop offset="25%"  stop-color="#eab308"/>
+      <stop offset="75%"  stop-color="#ca8a04"/>
+      <stop offset="100%" stop-color="#a16207"/>
+    </linearGradient>
+
+    <!-- ═══ GRADIENT: Steam Pipe (silver cylinder) ═══ -->
+    <linearGradient id="grad-pipe-steam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#e2e8f0"/>
+      <stop offset="20%"  stop-color="#94a3b8"/>
+      <stop offset="50%"  stop-color="#64748b"/>
+      <stop offset="80%"  stop-color="#475569"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+
+    <!-- ═══ GRADIENT: Power Cable (black rubber) ═══ -->
+    <linearGradient id="grad-cable-power" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#44403c"/>
+      <stop offset="30%"  stop-color="#1c1917"/>
+      <stop offset="70%"  stop-color="#0c0a09"/>
+      <stop offset="100%" stop-color="#292524"/>
+    </linearGradient>
+
+    <!-- ═══ GRADIENT: Copper Wire ═══ -->
+    <linearGradient id="grad-wire-copper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fdba74"/>
+      <stop offset="30%"  stop-color="#f97316"/>
+      <stop offset="70%"  stop-color="#c2410c"/>
+      <stop offset="100%" stop-color="#7c2d12"/>
+    </linearGradient>
+    <linearGradient id="grad-wire-insulation" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#57534e"/>
+      <stop offset="50%"  stop-color="#292524"/>
+      <stop offset="100%" stop-color="#1c1917"/>
+    </linearGradient>
+
+    <!-- ═══ GRADIENT: Fiber Optic ═══ -->
+    <linearGradient id="grad-cable-fiber" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#334155"/>
+      <stop offset="50%"  stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+
+    <!-- ═══ GRADIENT: Vertical versions (for vertical segments) ═══ -->
+    <linearGradient id="grad-pipe-water-v" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#94a3b8" stop-opacity="0.6"/>
+      <stop offset="20%"  stop-color="#64748b"/>
+      <stop offset="50%"  stop-color="#475569"/>
+      <stop offset="80%"  stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.8"/>
+    </linearGradient>
+    <linearGradient id="grad-pipe-water-hv" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#93c5fd" stop-opacity="0.5"/>
+      <stop offset="50%"  stop-color="#3b82f6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1d4ed8" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="grad-pipe-gas-v" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#fde68a"/>
+      <stop offset="25%"  stop-color="#eab308"/>
+      <stop offset="75%"  stop-color="#ca8a04"/>
+      <stop offset="100%" stop-color="#a16207"/>
+    </linearGradient>
+    <linearGradient id="grad-pipe-steam-v" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#e2e8f0"/>
+      <stop offset="20%"  stop-color="#94a3b8"/>
+      <stop offset="50%"  stop-color="#64748b"/>
+      <stop offset="80%"  stop-color="#475569"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+    <linearGradient id="grad-cable-power-v" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#44403c"/>
+      <stop offset="30%"  stop-color="#1c1917"/>
+      <stop offset="70%"  stop-color="#0c0a09"/>
+      <stop offset="100%" stop-color="#292524"/>
+    </linearGradient>
+    <linearGradient id="grad-wire-copper-v" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#fdba74"/>
+      <stop offset="30%"  stop-color="#f97316"/>
+      <stop offset="70%"  stop-color="#c2410c"/>
+      <stop offset="100%" stop-color="#7c2d12"/>
+    </linearGradient>
+    <linearGradient id="grad-wire-insulation-v" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#57534e"/>
+      <stop offset="50%"  stop-color="#292524"/>
+      <stop offset="100%" stop-color="#1c1917"/>
+    </linearGradient>
+    <linearGradient id="grad-cable-fiber-v" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#334155"/>
+      <stop offset="50%"  stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+
+    <!-- ═══ DROP SHADOW ═══ -->
+    <filter id="pipeShadow" x="-10%" y="-10%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+    <filter id="wireShadow" x="-10%" y="-10%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- GRID -->
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+    <path d="M 40 0 L 0 0 0 40" fill="none" class="grid-pattern"/>
+  </pattern>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <!-- CONNECTIONS LAYER (drawn behind nodes) -->
+  <g id="connections-layer"></g>
+
+  <!-- TEMP CONNECTION (while dragging) -->
+  <g id="temp-connection-layer"></g>
+
+  <!-- NODES LAYER -->
+  <g id="nodes-layer"></g>
+</svg>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════
+let activeType = 'pipe_water';
+let nodes = [];
+let connections = [];
+let idCounter = 0;
+let dragState = null;    // { nodeId, offsetX, offsetY }
+let connectState = null; // { fromNodeId, fromPortSide, fromX, fromY }
+
+const svg = document.getElementById('canvas');
+const connectionsLayer = document.getElementById('connections-layer');
+const tempLayer = document.getElementById('temp-connection-layer');
+const nodesLayer = document.getElementById('nodes-layer');
+
+// ══════════════════════════════════════════════
+//  CONNECTION STYLE DEFINITIONS
+// ══════════════════════════════════════════════
+const CONN_STYLES = {
+  pipe_water: {
+    thickness: 18,
+    layers: [
+      { width: 18, gradient: 'grad-pipe-water', gradientV: 'grad-pipe-water-v', opacity: 1 },
+      { width: 10, gradient: 'grad-pipe-water-h', gradientV: 'grad-pipe-water-hv', opacity: 0.6 },
+      { width: 6,  color: '#60a5fa', opacity: 0.25, dashArray: '10 14', animClass: 'flow-animated' },
+    ],
+    fitting: { r: 12, fill: '#475569', stroke: '#64748b', strokeWidth: 2 },
+    elbow: { r: 11, fill: '#475569', stroke: '#64748b', strokeWidth: 2 },
+    shadow: 'pipeShadow',
+  },
+  pipe_gas: {
+    thickness: 16,
+    layers: [
+      { width: 16, gradient: 'grad-pipe-gas', gradientV: 'grad-pipe-gas-v', opacity: 1 },
+      { width: 6,  color: '#fbbf24', opacity: 0.2, dashArray: '4 18', animClass: 'flow-slow' },
+    ],
+    fitting: { r: 11, fill: '#a16207', stroke: '#eab308', strokeWidth: 2 },
+    elbow: { r: 10, fill: '#a16207', stroke: '#eab308', strokeWidth: 2 },
+    shadow: 'pipeShadow',
+  },
+  pipe_steam: {
+    thickness: 18,
+    layers: [
+      { width: 18, gradient: 'grad-pipe-steam', gradientV: 'grad-pipe-steam-v', opacity: 1 },
+      { width: 8,  color: '#a78bfa', opacity: 0.2, dashArray: '6 16', animClass: 'flow-slow' },
+    ],
+    fitting: { r: 12, fill: '#64748b', stroke: '#94a3b8', strokeWidth: 2 },
+    elbow: { r: 11, fill: '#64748b', stroke: '#94a3b8', strokeWidth: 2 },
+    shadow: 'pipeShadow',
+  },
+  wire_copper: {
+    thickness: 8,
+    layers: [
+      { width: 8, gradient: 'grad-wire-insulation', gradientV: 'grad-wire-insulation-v', opacity: 1 },
+      { width: 4, gradient: 'grad-wire-copper', gradientV: 'grad-wire-copper-v', opacity: 1 },
+    ],
+    fitting: { r: 7, fill: '#78350f', stroke: '#f97316', strokeWidth: 1.5 },
+    elbow: { r: 5, fill: '#292524', stroke: '#78350f', strokeWidth: 1.5 },
+    shadow: 'wireShadow',
+  },
+  cable_power: {
+    thickness: 14,
+    layers: [
+      { width: 14, gradient: 'grad-cable-power', gradientV: 'grad-cable-power-v', opacity: 1 },
+      { width: 5,  color: '#ef4444', opacity: 0.7 },
+      { width: 14, color: '#fbbf24', opacity: 0.08, dashArray: '20 30' },
+    ],
+    fitting: { r: 10, fill: '#1c1917', stroke: '#ef4444', strokeWidth: 2 },
+    elbow: { r: 8, fill: '#1c1917', stroke: '#44403c', strokeWidth: 2 },
+    shadow: 'pipeShadow',
+  },
+  cable_fiber: {
+    thickness: 10,
+    layers: [
+      { width: 10, gradient: 'grad-cable-fiber', gradientV: 'grad-cable-fiber-v', opacity: 1 },
+      { width: 3,  color: '#22c55e', opacity: 0.9 },
+      { width: 10, color: '#22c55e', opacity: 0.12, dashArray: '4 20', animClass: 'pulse-glow' },
+    ],
+    fitting: { r: 8, fill: '#0f172a', stroke: '#22c55e', strokeWidth: 1.5 },
+    elbow: { r: 6, fill: '#0f172a', stroke: '#1e293b', strokeWidth: 1.5 },
+    shadow: 'wireShadow',
+  },
+};
+
+// ══════════════════════════════════════════════
+//  TOOLBAR
+// ══════════════════════════════════════════════
+function selectType(btn) {
+  document.querySelectorAll('.conn-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeType = btn.dataset.type;
+}
+
+// ══════════════════════════════════════════════
+//  NODE DEFINITIONS
+// ══════════════════════════════════════════════
+const NODE_TEMPLATES = [
+  { type: 'pump',    label: 'Water Pump',      icon: '⚙️', color: '#3b82f6', w: 140, h: 64, ports: { right: true, left: false } },
+  { type: 'tank',    label: 'Storage Tank',     icon: '🛢️', color: '#6366f1', w: 140, h: 64, ports: { right: true, left: true } },
+  { type: 'filter',  label: 'Filter Unit',      icon: '🔽', color: '#8b5cf6', w: 140, h: 64, ports: { right: true, left: true } },
+  { type: 'valve',   label: 'Control Valve',    icon: '🔧', color: '#14b8a6', w: 140, h: 64, ports: { right: true, left: true } },
+  { type: 'boiler',  label: 'Boiler',           icon: '🔥', color: '#ef4444', w: 140, h: 64, ports: { right: true, left: true } },
+  { type: 'meter',   label: 'Flow Meter',       icon: '📊', color: '#f59e0b', w: 140, h: 64, ports: { right: false, left: true } },
+];
+
+// Create initial nodes
+function createInitialNodes() {
+  const startX = 80;
+  const startY = 100;
+  NODE_TEMPLATES.forEach((tmpl, i) => {
+    const x = startX + (i % 3) * 260;
+    const y = startY + Math.floor(i / 3) * 160;
+    createNode(tmpl, x, y);
+  });
+}
+
+function createNode(tmpl, x, y) {
+  const id = 'node-' + (idCounter++);
+  const node = { id, ...tmpl, x, y };
+  nodes.push(node);
+  renderNode(node);
+  return node;
+}
+
+// ══════════════════════════════════════════════
+//  RENDER NODE
+// ══════════════════════════════════════════════
+function renderNode(node) {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.id = node.id;
+  g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+
+  // Shadow
+  const shadow = rect(0, 3, node.w, node.h, 10, 'rgba(0,0,0,0.4)');
+  shadow.setAttribute('filter', 'blur(4px)');
+  g.appendChild(shadow);
+
+  // Body
+  g.appendChild(rect(0, 0, node.w, node.h, 10, '#1e293b'));
+  g.appendChild(rect(0, 0, node.w, node.h, 10, 'none', node.color, 1.5));
+
+  // Header bar
+  const header = rect(0, 0, node.w, 24, 0, node.color + '30');
+  header.setAttribute('rx', '10');
+  header.setAttribute('clip-path', 'inset(0 0 50% 0)');
+  g.appendChild(header);
+
+  // Icon + Label
+  const icon = text(12, 17, node.icon, '0.85rem');
+  g.appendChild(icon);
+  const label = text(32, 17, node.label, '0.7rem', '#e2e8f0', 600);
+  g.appendChild(label);
+
+  // Type label
+  const typeLbl = text(node.w / 2, node.h - 10, node.type.toUpperCase(), '0.55rem', '#64748b', 500);
+  typeLbl.setAttribute('text-anchor', 'middle');
+  g.appendChild(typeLbl);
+
+  // Drag area
+  const dragArea = rect(0, 0, node.w, node.h, 10, 'transparent');
+  dragArea.classList.add('node-body');
+  dragArea.addEventListener('mousedown', e => startDrag(e, node.id));
+  g.appendChild(dragArea);
+
+  // Ports
+  if (node.ports.left) {
+    const port = circle(-1, node.h / 2, 7, node.color, '#0f172a', 2);
+    port.classList.add('port');
+    port.dataset.nodeId = node.id;
+    port.dataset.side = 'left';
+    port.addEventListener('mousedown', e => startConnect(e, node.id, 'left'));
+    g.appendChild(port);
+
+    // Port inner dot
+    g.appendChild(circle(-1, node.h / 2, 3, '#0f172a'));
+  }
+  if (node.ports.right) {
+    const port = circle(node.w + 1, node.h / 2, 7, node.color, '#0f172a', 2);
+    port.classList.add('port');
+    port.dataset.nodeId = node.id;
+    port.dataset.side = 'right';
+    port.addEventListener('mousedown', e => startConnect(e, node.id, 'right'));
+    g.appendChild(port);
+    g.appendChild(circle(node.w + 1, node.h / 2, 3, '#0f172a'));
+  }
+
+  nodesLayer.appendChild(g);
+}
+
+// ══════════════════════════════════════════════
+//  SVG HELPERS
+// ══════════════════════════════════════════════
+function rect(x, y, w, h, r, fill, stroke, sWidth) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  el.setAttribute('x', x); el.setAttribute('y', y);
+  el.setAttribute('width', w); el.setAttribute('height', h);
+  el.setAttribute('rx', r);
+  if (fill) el.setAttribute('fill', fill);
+  if (stroke) { el.setAttribute('stroke', stroke); el.setAttribute('stroke-width', sWidth); }
+  return el;
+}
+function circle(cx, cy, r, fill, stroke, sw) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  el.setAttribute('cx', cx); el.setAttribute('cy', cy); el.setAttribute('r', r);
+  el.setAttribute('fill', fill || 'none');
+  if (stroke) { el.setAttribute('stroke', stroke); el.setAttribute('stroke-width', sw); }
+  return el;
+}
+function text(x, y, content, size, fill, weight) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  el.setAttribute('x', x); el.setAttribute('y', y);
+  el.setAttribute('font-size', size || '0.75rem');
+  el.setAttribute('fill', fill || '#fff');
+  el.setAttribute('font-weight', weight || 400);
+  el.setAttribute('font-family', 'Inter, sans-serif');
+  el.textContent = content;
+  return el;
+}
+
+// ══════════════════════════════════════════════
+//  GET PORT POSITION (world coordinates)
+// ══════════════════════════════════════════════
+function getPortPos(nodeId, side) {
+  const n = nodes.find(n => n.id === nodeId);
+  if (!n) return { x: 0, y: 0 };
+  return {
+    x: side === 'right' ? n.x + n.w + 1 : n.x - 1,
+    y: n.y + n.h / 2,
+  };
+}
+
+// ══════════════════════════════════════════════
+//  RENDER CONNECTION (Orthogonal Pipe Route)
+// ══════════════════════════════════════════════
+function buildOrthogonalSegments(x1, y1, x2, y2, fromSide, toSide) {
+  // Build segments that go: horizontal → vertical → horizontal (like real pipes)
+  const segments = [];
+  const midX = (x1 + x2) / 2;
+
+  // If both ports face outward, route around
+  if (fromSide === 'right' && toSide === 'left') {
+    if (x2 > x1 + 40) {
+      // Simple left-to-right: H → V → H
+      segments.push({ x1, y1, x2: midX, y2: y1, dir: 'h' });              // horizontal out
+      segments.push({ x1: midX, y1, x2: midX, y2, dir: 'v' });            // vertical
+      segments.push({ x1: midX, y1: y2, x2, y2, dir: 'h' });              // horizontal in
+    } else {
+      // Need to go around (target is behind source)
+      const offset = 40;
+      segments.push({ x1, y1, x2: x1 + offset, y2: y1, dir: 'h' });
+      const detourY = Math.min(y1, y2) - 60;
+      segments.push({ x1: x1 + offset, y1, x2: x1 + offset, y2: detourY, dir: 'v' });
+      segments.push({ x1: x1 + offset, y1: detourY, x2: x2 - offset, y2: detourY, dir: 'h' });
+      segments.push({ x1: x2 - offset, y1: detourY, x2: x2 - offset, y2, dir: 'v' });
+      segments.push({ x1: x2 - offset, y1: y2, x2, y2, dir: 'h' });
+    }
+  } else {
+    // Fallback: direct segments
+    segments.push({ x1, y1, x2: midX, y2: y1, dir: 'h' });
+    segments.push({ x1: midX, y1, x2: midX, y2, dir: 'v' });
+    segments.push({ x1: midX, y1: y2, x2, y2, dir: 'h' });
+  }
+
+  return segments;
+}
+
+function renderConnection(conn) {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.id = 'conn-' + conn.id;
+  g.dataset.connId = conn.id;
+
+  const style = CONN_STYLES[conn.type];
+  const from = getPortPos(conn.fromNode, conn.fromSide);
+  const to = getPortPos(conn.toNode, conn.toSide);
+  const segments = buildOrthogonalSegments(from.x, from.y, to.x, to.y, conn.fromSide, conn.toSide);
+
+  // For each segment, draw layered pipe/wire
+  segments.forEach((seg, si) => {
+    const isH = seg.dir === 'h';
+    const len = isH ? Math.abs(seg.x2 - seg.x1) : Math.abs(seg.y2 - seg.y1);
+    if (len < 1) return; // skip zero-length
+
+    style.layers.forEach((layer, li) => {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      path.setAttribute('x1', seg.x1);
+      path.setAttribute('y1', seg.y1);
+      path.setAttribute('x2', seg.x2);
+      path.setAttribute('y2', seg.y2);
+      path.setAttribute('stroke-width', layer.width);
+      path.setAttribute('stroke-linecap', 'butt');
+
+      if (layer.gradient) {
+        const gradId = isH ? layer.gradient : (layer.gradientV || layer.gradient);
+        path.setAttribute('stroke', `url(#${gradId})`);
+      } else {
+        path.setAttribute('stroke', layer.color);
+      }
+      path.setAttribute('stroke-opacity', layer.opacity);
+
+      if (layer.dashArray) {
+        path.setAttribute('stroke-dasharray', layer.dashArray);
+      }
+      if (layer.animClass) {
+        path.classList.add(layer.animClass);
+      }
+      if (li === 0 && style.shadow) {
+        path.setAttribute('filter', `url(#${style.shadow})`);
+      }
+
+      g.appendChild(path);
+    });
+  });
+
+  // Draw ELBOW joints at bend points
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i];
+    const elbow = style.elbow;
+    // The bend point is where current segment ends
+    const cx = seg.x2;
+    const cy = seg.y2;
+    g.appendChild(circle(cx, cy, elbow.r, elbow.fill, elbow.stroke, elbow.strokeWidth));
+    // Inner highlight on elbow
+    g.appendChild(circle(cx, cy, elbow.r * 0.4, elbow.stroke + '40'));
+  }
+
+  // Draw FITTINGS at start and end
+  const fitting = style.fitting;
+  g.appendChild(circle(from.x, from.y, fitting.r, fitting.fill, fitting.stroke, fitting.strokeWidth));
+  g.appendChild(circle(from.x, from.y, fitting.r * 0.45, fitting.stroke + '50'));
+  g.appendChild(circle(to.x, to.y, fitting.r, fitting.fill, fitting.stroke, fitting.strokeWidth));
+  g.appendChild(circle(to.x, to.y, fitting.r * 0.45, fitting.stroke + '50'));
+
+  // Right click to delete
+  g.style.cursor = 'pointer';
+  g.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    connections = connections.filter(c => c.id !== conn.id);
+    g.remove();
+  });
+
+  connectionsLayer.appendChild(g);
+  return g;
+}
+
+function rerenderAllConnections() {
+  connectionsLayer.innerHTML = '';
+  connections.forEach(c => renderConnection(c));
+}
+
+// ══════════════════════════════════════════════
+//  NODE DRAGGING
+// ══════════════════════════════════════════════
+function startDrag(e, nodeId) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  const node = nodes.find(n => n.id === nodeId);
+  const pt = svgPoint(e);
+  dragState = { nodeId, offsetX: pt.x - node.x, offsetY: pt.y - node.y };
+}
+
+svg.addEventListener('mousemove', e => {
+  const pt = svgPoint(e);
+
+  if (dragState) {
+    const node = nodes.find(n => n.id === dragState.nodeId);
+    node.x = pt.x - dragState.offsetX;
+    node.y = pt.y - dragState.offsetY;
+    const g = document.getElementById(node.id);
+    g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+    rerenderAllConnections();
+  }
+
+  if (connectState) {
+    renderTempConnection(connectState.fromX, connectState.fromY, pt.x, pt.y);
+  }
+});
+
+svg.addEventListener('mouseup', () => {
+  dragState = null;
+
+  if (connectState) {
+    // Check if we're over a port
+    const target = findPortUnder(event);
+    if (target && target.nodeId !== connectState.fromNodeId) {
+      // Create connection
+      const conn = {
+        id: 'conn-' + (idCounter++),
+        type: activeType,
+        fromNode: connectState.fromNodeId,
+        fromSide: connectState.fromSide,
+        toNode: target.nodeId,
+        toSide: target.side,
+      };
+      connections.push(conn);
+      renderConnection(conn);
+    }
+    connectState = null;
+    tempLayer.innerHTML = '';
+  }
+});
+
+// ══════════════════════════════════════════════
+//  PORT CONNECTION DRAGGING
+// ══════════════════════════════════════════════
+function startConnect(e, nodeId, side) {
+  e.stopPropagation();
+  e.preventDefault();
+  const pos = getPortPos(nodeId, side);
+  connectState = {
+    fromNodeId: nodeId,
+    fromSide: side,
+    fromX: pos.x,
+    fromY: pos.y,
+  };
+}
+
+function renderTempConnection(x1, y1, x2, y2) {
+  tempLayer.innerHTML = '';
+  const style = CONN_STYLES[activeType];
+
+  // Draw a simple straight preview with the connection style
+  style.layers.forEach((layer, li) => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke-width', layer.width);
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('stroke-opacity', layer.opacity * 0.6);
+
+    if (layer.gradient) {
+      line.setAttribute('stroke', layer.color || '#64748b');
+    }
+    if (layer.color) {
+      line.setAttribute('stroke', layer.color);
+    }
+    if (layer.gradient && !layer.color) {
+      line.setAttribute('stroke', `url(#${layer.gradient})`);
+    }
+    if (layer.dashArray) {
+      line.setAttribute('stroke-dasharray', layer.dashArray);
+    }
+    if (layer.animClass) {
+      line.classList.add(layer.animClass);
+    }
+
+    tempLayer.appendChild(line);
+  });
+}
+
+function findPortUnder(e) {
+  const els = document.elementsFromPoint(e.clientX, e.clientY);
+  for (const el of els) {
+    if (el.classList.contains('port')) {
+      return { nodeId: el.dataset.nodeId, side: el.dataset.side };
+    }
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════
+//  SVG COORDINATE HELPER
+// ══════════════════════════════════════════════
+function svgPoint(e) {
+  const r = svg.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+// ══════════════════════════════════════════════
+//  INITIALIZE
+// ══════════════════════════════════════════════
+createInitialNodes();
+
+// Create some demo connections
+setTimeout(() => {
+  // Water Pump → Tank (water pipe)
+  connections.push({
+    id: 'conn-demo1', type: 'pipe_water',
+    fromNode: 'node-0', fromSide: 'right',
+    toNode: 'node-1', toSide: 'left',
+  });
+  // Tank → Filter (gas pipe)
+  connections.push({
+    id: 'conn-demo2', type: 'pipe_gas',
+    fromNode: 'node-1', fromSide: 'right',
+    toNode: 'node-2', toSide: 'left',
+  });
+  // Valve → Boiler (power cable)
+  connections.push({
+    id: 'conn-demo3', type: 'cable_power',
+    fromNode: 'node-3', fromSide: 'right',
+    toNode: 'node-4', toSide: 'left',
+  });
+  // Boiler → Meter (steam pipe)
+  connections.push({
+    id: 'conn-demo4', type: 'pipe_steam',
+    fromNode: 'node-4', fromSide: 'right',
+    toNode: 'node-5', toSide: 'left',
+  });
+  rerenderAllConnections();
+}, 100);
+</script>
+
+</body>
+</html>
