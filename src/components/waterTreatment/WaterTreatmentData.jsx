@@ -478,3 +478,127 @@ WT_CATEGORIES.forEach(cat => {
     WT_COMPONENTS[comp.type] = { ...comp, category: cat.id, categoryColor: cat.color };
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════
+   COMPONENT PARAMETERS — live-data parameters per component type
+   Each param: { key, label, unit, min, max, decimals }
+═══════════════════════════════════════════════════════════════════ */
+export const COMPONENT_PARAMETERS = {
+  /* Flow System */
+  wt_pump: [
+    { key: 'rpm',       label: 'RPM',         unit: 'RPM',    min: 0,    max: 3600,  decimals: 0 },
+    { key: 'flow_rate', label: 'Flow Rate',    unit: 'L/min',  min: 0,    max: 500,   decimals: 1 },
+    { key: 'power',     label: 'Power',        unit: 'kW',     min: 0,    max: 50,    decimals: 2 },
+  ],
+  wt_valve: [
+    { key: 'position',       label: 'Position',       unit: '%',   min: 0,   max: 100, decimals: 0 },
+    { key: 'pressure_drop',  label: 'Pressure Drop',  unit: 'bar', min: 0,   max: 10,  decimals: 2 },
+  ],
+  wt_flow_meter: [
+    { key: 'flow_rate',  label: 'Flow Rate',   unit: 'L/min', min: 0,   max: 500,    decimals: 1 },
+    { key: 'total_flow', label: 'Total Flow',   unit: 'm³',    min: 0,   max: 99999,  decimals: 1 },
+  ],
+
+  /* Containers */
+  wt_raw_tank: [
+    { key: 'level',       label: 'Level',        unit: '%',  min: 0, max: 100, decimals: 1 },
+    { key: 'temperature', label: 'Temperature',   unit: '°C', min: 5, max: 45,  decimals: 1 },
+  ],
+  wt_mixing_tank: [
+    { key: 'level',       label: 'Level',        unit: '%',   min: 0,  max: 100,   decimals: 1 },
+    { key: 'mixer_speed', label: 'Mixer Speed',   unit: 'RPM', min: 0,  max: 300,   decimals: 0 },
+    { key: 'ph',          label: 'pH',             unit: '',    min: 0,  max: 14,    decimals: 2 },
+  ],
+  wt_settling_tank: [
+    { key: 'level',     label: 'Level',      unit: '%',   min: 0, max: 100,  decimals: 1 },
+    { key: 'turbidity', label: 'Turbidity',   unit: 'NTU', min: 0, max: 1000, decimals: 1 },
+  ],
+  wt_storage_tank: [
+    { key: 'level',  label: 'Level',   unit: '%',  min: 0, max: 100,  decimals: 1 },
+    { key: 'volume', label: 'Volume',   unit: 'm³', min: 0, max: 5000, decimals: 1 },
+  ],
+
+  /* Filters */
+  wt_sand_filter: [
+    { key: 'dp',        label: 'Diff. Pressure', unit: 'bar',   min: 0,  max: 5,   decimals: 2 },
+    { key: 'flow_rate', label: 'Flow Rate',       unit: 'L/min', min: 0,  max: 500, decimals: 1 },
+  ],
+  wt_carbon_filter: [
+    { key: 'dp',        label: 'Diff. Pressure', unit: 'bar', min: 0,  max: 5,     decimals: 2 },
+    { key: 'run_hours', label: 'Run Hours',       unit: 'hrs', min: 0,  max: 99999, decimals: 0 },
+  ],
+  wt_cartridge_filter: [
+    { key: 'dp', label: 'Diff. Pressure', unit: 'bar', min: 0, max: 5, decimals: 2 },
+  ],
+  wt_uf_membrane: [
+    { key: 'tmp',          label: 'TMP',           unit: 'bar',   min: 0, max: 5,   decimals: 2 },
+    { key: 'permeate_flow',label: 'Permeate Flow',  unit: 'L/min', min: 0, max: 300, decimals: 1 },
+  ],
+
+  /* RO System */
+  wt_ro_membrane: [
+    { key: 'recovery',      label: 'Recovery',       unit: '%',   min: 0,  max: 100, decimals: 1 },
+    { key: 'tds_rejection',  label: 'TDS Rejection',  unit: '%',   min: 90, max: 100, decimals: 1 },
+    { key: 'pressure',      label: 'Pressure',        unit: 'bar', min: 0,  max: 80,  decimals: 1 },
+  ],
+  wt_pressure_vessel: [
+    { key: 'pressure',    label: 'Pressure',     unit: 'bar', min: 0,  max: 80, decimals: 1 },
+    { key: 'temperature', label: 'Temperature',   unit: '°C',  min: 5,  max: 45, decimals: 1 },
+  ],
+  wt_hp_pump: [
+    { key: 'rpm',      label: 'RPM',       unit: 'RPM', min: 0,  max: 3600, decimals: 0 },
+    { key: 'pressure', label: 'Pressure',   unit: 'bar', min: 0,  max: 80,   decimals: 1 },
+    { key: 'power',    label: 'Power',      unit: 'kW',  min: 0,  max: 100,  decimals: 2 },
+  ],
+
+  /* Chemical System */
+  wt_dosing_pump: [
+    { key: 'dose_rate',   label: 'Dose Rate',      unit: 'mL/min', min: 0, max: 500,  decimals: 1 },
+    { key: 'chem_level',  label: 'Chemical Level',  unit: '%',      min: 0, max: 100,  decimals: 0 },
+  ],
+  wt_chemical_tank: [
+    { key: 'level',       label: 'Level',        unit: '%',  min: 0, max: 100, decimals: 1 },
+    { key: 'temperature', label: 'Temperature',   unit: '°C', min: 5, max: 45,  decimals: 1 },
+  ],
+
+  /* Disinfection */
+  wt_uv_system: [
+    { key: 'uv_intensity', label: 'UV Intensity',  unit: 'mJ/cm²', min: 0, max: 200,   decimals: 1 },
+    { key: 'lamp_hours',   label: 'Lamp Hours',     unit: 'hrs',    min: 0, max: 99999, decimals: 0 },
+  ],
+  wt_chlorine_system: [
+    { key: 'residual_cl', label: 'Residual Cl₂',  unit: 'ppm',  min: 0, max: 5,  decimals: 2 },
+    { key: 'dose_rate',   label: 'Dose Rate',      unit: 'mg/L', min: 0, max: 10, decimals: 2 },
+  ],
+  wt_ozone_system: [
+    { key: 'o3_conc',   label: 'O₃ Concentration', unit: 'ppm',   min: 0, max: 20,  decimals: 2 },
+    { key: 'flow_rate', label: 'Flow Rate',          unit: 'L/min', min: 0, max: 500, decimals: 1 },
+  ],
+
+  /* Waste Handling */
+  wt_sludge_tank: [
+    { key: 'level',   label: 'Level',    unit: '%',     min: 0, max: 100,  decimals: 1 },
+    { key: 'density', label: 'Density',   unit: 'kg/m³', min: 900, max: 1200, decimals: 0 },
+  ],
+  wt_filter_press: [
+    { key: 'pressure',    label: 'Pressure',     unit: 'bar',  min: 0, max: 20,   decimals: 1 },
+    { key: 'cycle_count', label: 'Cycle Count',   unit: '',     min: 0, max: 99999, decimals: 0 },
+  ],
+  wt_drain_system: [
+    { key: 'flow_rate', label: 'Flow Rate', unit: 'L/min', min: 0, max: 500, decimals: 1 },
+  ],
+
+  /* Control & Monitoring */
+  wt_control_panel: [
+    { key: 'cpu_load',    label: 'CPU Load',     unit: '%', min: 0, max: 100, decimals: 1 },
+    { key: 'comm_status', label: 'Comm Status',   unit: '',  min: 0, max: 1,   decimals: 0 },
+  ],
+  wt_sensors: [
+    { key: 'ph',          label: 'pH',           unit: '',    min: 0,  max: 14,   decimals: 2 },
+    { key: 'tds',         label: 'TDS',          unit: 'ppm', min: 0,  max: 2000, decimals: 0 },
+    { key: 'temperature', label: 'Temperature',   unit: '°C',  min: 5,  max: 45,   decimals: 1 },
+  ],
+  wt_gauges: [
+    { key: 'pressure', label: 'Pressure', unit: 'bar', min: 0, max: 20, decimals: 1 },
+  ],
+};
