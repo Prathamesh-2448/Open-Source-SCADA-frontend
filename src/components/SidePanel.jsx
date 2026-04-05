@@ -9,8 +9,8 @@ const SidePanel = ({ isOpen, onClose, theme, onSelectIndustry }) => {
     { id: 'wtp', name: 'Water Treatment Plant', icon: '🚰', action: 'water_treatment' },
     { id: 'i1', name: 'Technology', icon: '💻' },
     { id: 'i2', name: 'Healthcare', icon: '🏥' },
-    { id: 'i3', name: 'Finance', icon: '💰' },
-    { id: 'i4', name: 'Retail', icon: '🛍️' }
+    // { id: 'i3', name: 'Finance', icon: '💰' },
+    // { id: 'i4', name: 'Retail', icon: '🛍️' }
   ];
 
   const toggleExpand = (id) => {

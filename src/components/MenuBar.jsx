@@ -1,11 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, User } from 'lucide-react';
 
-const MenuBar = ({ theme }) => {
+const MenuBar = ({ theme, onLogout }) => {
   const [activeMenu, setActiveMenu] = useState(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const userMenuRef = useRef(null);
+  const [currentUser, setCurrentUser] = useState("User");
+
+  useEffect(() => {
+    // Get user info from localStorage
+    const savedUser = localStorage.getItem('scada-user');
+    if (savedUser) {
+      try {
+        const userObj = JSON.parse(savedUser);
+        setCurrentUser(userObj.username || "User");
+      } catch (e) {
+        console.error("Error parsing user info:", e);
+      }
+    }
+  }, []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -270,7 +284,7 @@ const MenuBar = ({ theme }) => {
           }}
         >
           <User size={18} />
-          <span style={{ fontSize: '13px' }}>User</span>
+          <span style={{ fontSize: '13px' }}>{currentUser}</span>
           <ChevronDown size={14} />
         </div>
 
@@ -318,7 +332,7 @@ const MenuBar = ({ theme }) => {
             />
             <div
               onClick={() => {
-                console.log('Logout clicked');
+                if (onLogout) onLogout();
                 setUserMenuOpen(false);
               }}
               style={{
