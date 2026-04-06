@@ -339,7 +339,7 @@ const edgeTypes = { deletable: DeletableEdge, pipeEdge: PipeEdge };
 /* ═══════════════════════════════════════════════════════════
    JSON POPUP
 ═══════════════════════════════════════════════════════════ */
-function JsonPopup({ nodes, edges, onClose, isDark }) {
+function JsonPopup({ nodes, edges, onClose, isDark, isLowCode, onSaveSuccess }) {
   const [rasid, setRasid] = useState('');
   const [sendStatus, setSendStatus] = useState(null); /* null | 'sending' | 'success' | 'error' */
   const [sendMsg, setSendMsg] = useState('');
@@ -370,28 +370,35 @@ function JsonPopup({ nodes, edges, onClose, isDark }) {
   const handleSave = async () => {
     if (!rasid.trim()) {
       setSendStatus('error');
-      setSendMsg('Please enter a Raspberry Pi / Device ID');
+      setSendMsg('Please enter a Device ID');
       return;
     }
     setSendStatus('sending');
     setSendMsg('');
     try {
-      const url = `${BACKEND_URL}/dashboards/`;
+      /* Issue 2 & 3: Branch on isLowCode for different endpoint and payload */
+      const deviceId = rasid.trim();
+      const url = isLowCode
+        ? `${BACKEND_URL}/devices/${deviceId}/command`
+        : `${BACKEND_URL}/dashboards/`;
       const token = localStorage.getItem('scada-token');
+      const bodyData = isLowCode
+        ? { command: 'deploy_graph', params: json }
+        : { name: `Dashboard - ${deviceId}`, layout_data: json };
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ 
-          name: `Dashboard - ${rasid.trim()}`,
-          layout_data: json 
-        }),
+        body: JSON.stringify(bodyData),
       });
       if (res.ok) {
         setSendStatus('success');
-        setSendMsg(`Saved to ${rasid} (${res.status})`);
+        const action = isLowCode ? 'Deployed to' : 'Saved to';
+        setSendMsg(`${action} ${deviceId} (${res.status})`);
+        /* Issue 4: Notify Dashboard of successful save/deploy */
+        onSaveSuccess?.();
       } else {
         const errText = await res.text().catch(() => '');
         setSendStatus('error');
@@ -516,7 +523,9 @@ function JsonPopup({ nodes, edges, onClose, isDark }) {
               whiteSpace: 'nowrap',
             }}
           >
-            {sendStatus === 'sending' ? 'Saving…' : 'Save'}
+            {sendStatus === 'sending'
+              ? (isLowCode ? 'Deploying…' : 'Saving…')
+              : (isLowCode ? 'Deploy' : 'Save')}
           </button>
           {sendMsg && (
             <span style={{
@@ -564,7 +573,7 @@ function simulateValue(param, prevVal) {
 /* ═══════════════════════════════════════════════════════════
    INNER CANVAS
 ═══════════════════════════════════════════════════════════ */
-const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onClear, isLiveMode }, ref) => {
+const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onClear, isLiveMode, isLowCode, onSaveSuccess }, ref) => {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
   const [showJson, setShowJson] = useState(false);
@@ -579,7 +588,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
     triggerSave: async (deviceId) => {
       const currentNodes = getNodes();
       const currentEdges = getEdges();
-      
+
       const json = {
         nodes: currentNodes.map(n => {
           const def = NODE_DEFS[n.data.nodeType] ?? { fields: [] };
@@ -597,13 +606,13 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
         const token = localStorage.getItem('scada-token');
         const res = await fetch(url, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': token ? `Bearer ${token}` : ''
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             name: `AutoSave - ${deviceId.trim()}`,
-            layout_data: json 
+            layout_data: json
           }),
         });
         return res.ok;
@@ -626,7 +635,9 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
     },
     openJsonPopup: () => {
       setShowJson(true);
-    }
+    },
+    /* Returns true if the canvas currently has any visible nodes */
+    hasNodes: () => getNodes().length > 0,
   }));
 
   /* stable callback so each node can report its current field values */
@@ -986,6 +997,8 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
           edges={rfEdges}
           onClose={() => setShowJson(false)}
           isDark={isDark}
+          isLowCode={isLowCode}
+          onSaveSuccess={onSaveSuccess}
         />
       )}
 
@@ -1018,7 +1031,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
 /* ═══════════════════════════════════════════════════════════
    EXPORTED CANVAS
 ═══════════════════════════════════════════════════════════ */
-const Canvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onClear, isLiveMode }, ref) => (
+const Canvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onClear, isLiveMode, isLowCode, onSaveSuccess }, ref) => (
   <DropZone>
     <ReactFlowProvider>
       <InnerCanvas
@@ -1028,6 +1041,8 @@ const Canvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onClear,
         activeConnectionType={activeConnectionType}
         onClear={onClear}
         isLiveMode={isLiveMode}
+        isLowCode={isLowCode}
+        onSaveSuccess={onSaveSuccess}
       />
     </ReactFlowProvider>
   </DropZone>
