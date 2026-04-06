@@ -1,22 +1,27 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import Sidebar from "../components/layout/Sidebar/Sidebar";
 import api from "../services/api";
 import "./Auth.css";
 
 export default function Login({ onLogin }) {
     const navigate = useNavigate();
-    const [email, setEmail] = useState("");
+    const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [remember, setRemember] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [theme, setTheme] = useState('dark');
+
+    const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setError("");
 
-        if (!email || !password) {
+        if (!username || !password) {
             setError("Please fill in all fields.");
             return;
         }
@@ -25,23 +30,20 @@ export default function Login({ onLogin }) {
 
         try {
             // Backend endpoint: POST /auth/login
-            // Request payload: { username, password }
             const response = await api.post("/auth/login", {
-                username: email,
+                username: username,
                 password: password,
             });
 
             const data = response.data;
 
-            // Backend success returns { access_token: "..." }
             if (data?.access_token) {
                 localStorage.setItem("scada-token", data.access_token);
-                // Optionally save user info if backend provided it, else use username
-                localStorage.setItem("scada-user", JSON.stringify({ username: email }));
+                localStorage.setItem("scada-user", JSON.stringify({ username: username }));
             }
 
-            onLogin();           // Update App.jsx auth state
-            navigate("/home");    // Redirect to Dashboard
+            onLogin();
+            navigate("/home");
 
         } catch (err) {
             console.error("Login error:", err);
@@ -53,25 +55,25 @@ export default function Login({ onLogin }) {
     };
 
     return (
-        <div className="auth-page">
-            <Sidebar isAuth={true} />
+        <div className={`auth-page ${theme}`} data-theme={theme}>
+            <Sidebar isAuth={true} theme={theme} onThemeToggle={toggleTheme} />
             <main className="auth-main">
                 <div className="auth-content">
                     <div className="auth-header">
                         <h1>Login</h1>
-                        <p className="auth-subtitle">THE FOCUSED OBSERVER</p>
+
                     </div>
 
                     <div className="auth-card">
                         <form onSubmit={handleLogin} noValidate>
                             <div className="form-group">
-                                <label>EMAIL ADDRESS</label>
+                                <label>USERNAME</label>
                                 <input
-                                    type="email"
-                                    placeholder="name@domain.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    autoComplete="email"
+                                    type="text"
+                                    placeholder="Enter your username"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    autoComplete="username"
                                 />
                             </div>
 
@@ -80,13 +82,22 @@ export default function Login({ onLogin }) {
                                     <label>PASSWORD</label>
                                     <a href="#" className="forgot-link">Forgot Password?</a>
                                 </div>
-                                <input
-                                    type="password"
-                                    placeholder="••••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    autoComplete="current-password"
-                                />
+                                <div className="password-input-wrapper">
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        placeholder="••••••••••"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        autoComplete="current-password"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="password-toggle-btn"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
                             </div>
 
                             {error && <p className="auth-error">{error}</p>}
@@ -114,10 +125,7 @@ export default function Login({ onLogin }) {
                             </button>
                         </form>
 
-                        <p className="auth-switch">
-                            New to the flow?{" "}
-                            <span onClick={() => navigate("/register")}>Join the Observer</span>
-                        </p>
+
                     </div>
                 </div>
             </main>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, User } from 'lucide-react';
 
-const MenuBar = ({ theme, onLogout }) => {
+const MenuBar = ({ theme, onLogout, onSave, onOpenSavedDashboards }) => {
   const [activeMenu, setActiveMenu] = useState(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -67,7 +67,6 @@ const MenuBar = ({ theme, onLogout }) => {
     { label: 'New Project', shortcut: 'Ctrl+Shift+P' },
     { label: 'Open Project', shortcut: 'Ctrl+Shift+O' },
     { type: 'separator' },
-    { label: 'Project Settings', shortcut: '' },
     { label: 'Close Project', shortcut: '' }
   ];
 
@@ -75,7 +74,14 @@ const MenuBar = ({ theme, onLogout }) => {
     if (item.action === 'exit') {
       setActiveMenu(null);
     }
-    // Add other actions here as needed
+    if (item.label === 'Save') {
+      if (onSave) onSave();
+      setActiveMenu(null);
+    }
+    if (item.label === 'Saved Dashboard') {
+      if (onOpenSavedDashboards) onOpenSavedDashboards();
+      setActiveMenu(null);
+    }
   };
 
   const renderDropdownMenu = (items) => (
