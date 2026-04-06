@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import ReactFlow, {
   Background, Controls, MiniMap,
@@ -367,7 +367,7 @@ function JsonPopup({ nodes, edges, onClose, isDark }) {
   const text = JSON.stringify(json, null, 2);
 
   /* ── POST to backend ── */
-  const handleSendToBackend = async () => {
+  const handleSave = async () => {
     if (!rasid.trim()) {
       setSendStatus('error');
       setSendMsg('Please enter a Raspberry Pi / Device ID');
@@ -376,15 +376,22 @@ function JsonPopup({ nodes, edges, onClose, isDark }) {
     setSendStatus('sending');
     setSendMsg('');
     try {
-      const url = `${BACKEND_URL}/devices/${encodeURIComponent(rasid.trim())}/command/`;
+      const url = `${BACKEND_URL}/dashboards/`;
+      const token = localStorage.getItem('scada-token');
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(json),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ 
+          name: `Dashboard - ${rasid.trim()}`,
+          layout_data: json 
+        }),
       });
       if (res.ok) {
         setSendStatus('success');
-        setSendMsg(`Sent to ${rasid} (${res.status})`);
+        setSendMsg(`Saved to ${rasid} (${res.status})`);
       } else {
         const errText = await res.text().catch(() => '');
         setSendStatus('error');
@@ -495,7 +502,7 @@ function JsonPopup({ nodes, edges, onClose, isDark }) {
             onBlur={e => { e.target.style.borderColor = isDark ? '#2a2a2a' : '#d1d5db'; }}
           />
           <button
-            onClick={handleSendToBackend}
+            onClick={handleSave}
             disabled={sendStatus === 'sending'}
             style={{
               padding: '0.4rem 1rem',
@@ -509,7 +516,7 @@ function JsonPopup({ nodes, edges, onClose, isDark }) {
               whiteSpace: 'nowrap',
             }}
           >
-            {sendStatus === 'sending' ? 'Sending…' : 'Send to Backend'}
+            {sendStatus === 'sending' ? 'Saving…' : 'Save'}
           </button>
           {sendMsg && (
             <span style={{
@@ -557,7 +564,7 @@ function simulateValue(param, prevVal) {
 /* ═══════════════════════════════════════════════════════════
    INNER CANVAS
 ═══════════════════════════════════════════════════════════ */
-function InnerCanvas({ theme, droppedNodes, activeConnectionType, onClear, isLiveMode }) {
+const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onClear, isLiveMode }, ref) => {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
   const [showJson, setShowJson] = useState(false);
@@ -565,6 +572,62 @@ function InnerCanvas({ theme, droppedNodes, activeConnectionType, onClear, isLiv
   const processedIds = useRef(new Set());
   const liveIntervalRef = useRef(null);
   const { screenToFlowPosition } = useReactFlow();
+  const { getNodes, getEdges } = useReactFlow();
+
+  /* ── Imperative Save Function for Parent ── */
+  useImperativeHandle(ref, () => ({
+    triggerSave: async (deviceId) => {
+      const currentNodes = getNodes();
+      const currentEdges = getEdges();
+      
+      const json = {
+        nodes: currentNodes.map(n => {
+          const def = NODE_DEFS[n.data.nodeType] ?? { fields: [] };
+          const fieldData = {};
+          def.fields.forEach(f => {
+            fieldData[f.k] = n.data.currentVals?.[f.k] ?? f.v;
+          });
+          return { id: n.id, type: n.data.nodeType, data: fieldData };
+        }),
+        edges: currentEdges.map(e => ({ source: e.source, target: e.target })),
+      };
+
+      try {
+        const url = `${BACKEND_URL}/dashboards/`;
+        const token = localStorage.getItem('scada-token');
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          },
+          body: JSON.stringify({ 
+            name: `AutoSave - ${deviceId.trim()}`,
+            layout_data: json 
+          }),
+        });
+        return res.ok;
+      } catch (err) {
+        console.error("Save failed:", err);
+        return false;
+      }
+    },
+    getCanvasData: () => {
+      return {
+        nodes: getNodes(),
+        edges: getEdges()
+      };
+    },
+    loadCanvasData: (layoutData) => {
+      if (!layoutData) return;
+      setRfNodes(layoutData.nodes || []);
+      setRfEdges(layoutData.edges || []);
+      processedIds.current = new Set((layoutData.nodes || []).map(n => n.id));
+    },
+    openJsonPopup: () => {
+      setShowJson(true);
+    }
+  }));
 
   /* stable callback so each node can report its current field values */
   const makeValChange = useCallback((nodeId) => (vals) => {
@@ -576,6 +639,14 @@ function InnerCanvas({ theme, droppedNodes, activeConnectionType, onClear, isLiv
   }, []);
 
   useEffect(() => {
+    /* ── Handle clearing the canvas ── */
+    if (droppedNodes.length === 0) {
+      setRfNodes([]);
+      setRfEdges([]);
+      processedIds.current.clear();
+      return;
+    }
+
     const fresh = droppedNodes.filter(n => !processedIds.current.has(n.id));
     if (!fresh.length) return;
     fresh.forEach(n => processedIds.current.add(n.id));
@@ -619,7 +690,7 @@ function InnerCanvas({ theme, droppedNodes, activeConnectionType, onClear, isLiv
     });
 
     setRfNodes(prev => [...prev, ...rfNew]);
-  }, [droppedNodes, screenToFlowPosition, makeValChange]);
+  }, [droppedNodes, screenToFlowPosition, makeValChange, setRfEdges, setRfNodes]);
 
   /* ── Save configured params for a node ── */
   const handleSaveParams = useCallback((nodeId, params) => {
@@ -816,13 +887,14 @@ function InnerCanvas({ theme, droppedNodes, activeConnectionType, onClear, isLiv
         {!isLiveMode && (
           <Panel position="top-right">
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+
               {/* Clear button */}
               <button
                 onClick={() => {
                   setRfNodes([]);
                   setRfEdges([]);
                   processedIds.current = new Set();
-                  onClear?.();
+                  if (onClear) onClear();
                 }}
                 style={{
                   background: '#374151',
@@ -941,15 +1013,16 @@ function InnerCanvas({ theme, droppedNodes, activeConnectionType, onClear, isLiv
       `}</style>
     </>
   );
-}
+});
 
 /* ═══════════════════════════════════════════════════════════
    EXPORTED CANVAS
 ═══════════════════════════════════════════════════════════ */
-const Canvas = ({ theme, droppedNodes, activeConnectionType, onClear, isLiveMode }) => (
+const Canvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onClear, isLiveMode }, ref) => (
   <DropZone>
     <ReactFlowProvider>
       <InnerCanvas
+        ref={ref}
         theme={theme}
         droppedNodes={droppedNodes}
         activeConnectionType={activeConnectionType}
@@ -958,6 +1031,6 @@ const Canvas = ({ theme, droppedNodes, activeConnectionType, onClear, isLiveMode
       />
     </ReactFlowProvider>
   </DropZone>
-);
+));
 
 export default Canvas;
