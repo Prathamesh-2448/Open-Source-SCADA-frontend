@@ -30,10 +30,18 @@ export default function Dashboard({ onLogout }) {
 
 
   const handleNavClick = id => {
-    if (id==='create')  { setIsLiveMode(false); setActiveSidePanel(p => p==='dashboard' ? null : 'dashboard'); }
+    if (id==='create') {
+      /* Clear canvas when switching from Low Code platform to Dashboard */
+      if (activeSidePanel === 'lowcode') {
+        setDroppedNodes([]);
+        setIsSaved(true);
+      }
+      setIsLiveMode(false);
+      setActiveSidePanel(p => p==='dashboard' ? null : 'dashboard');
+    }
     if (id==='lowcode') {
       if (activeSidePanel !== 'lowcode') {
-        if (!isSaved) {
+        if (!isSaved && canvasRef.current?.hasNodes()) {
           setPendingNavId(id);
           setShowUnsavedModal(true);
           return;
@@ -52,7 +60,18 @@ export default function Dashboard({ onLogout }) {
     if (canvasRef.current) {
       canvasRef.current.openJsonPopup();
       setShowUnsavedModal(false);
-      /* Note: We don't automatically redirect yet because the user needs to finish saving in the JSON popup */
+    }
+  };
+
+  /* Issue 4: Called by JsonPopup on successful save/deploy.
+     Marks canvas as saved and navigates to Low Code if that was the pending destination. */
+  const handleSaveSuccess = () => {
+    setIsSaved(true);
+    if (pendingNavId === 'lowcode' || activeSidePanel === 'lowcode') {
+      setDroppedNodes([]);
+      setIsLiveMode(false);
+      setActiveSidePanel('lowcode');
+      setPendingNavId(null);
     }
   };
 
@@ -170,6 +189,8 @@ export default function Dashboard({ onLogout }) {
               activeConnectionType={activeConnectionType}
               onClear={() => setDroppedNodes([])}
               isLiveMode={isLiveMode}
+              isLowCode={activeSidePanel === 'lowcode' || pendingNavId === 'lowcode'}
+              onSaveSuccess={handleSaveSuccess}
             />
           </div>
         </div>
