@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, User } from 'lucide-react';
 
-const MenuBar = ({ theme, onLogout, onSave, onOpenSavedDashboards }) => {
+const MenuBar = ({ theme, onLogout, onSave, onOpenSavedDashboards, onNew, onSaveAs, onExit, isSaved }) => {
   const [activeMenu, setActiveMenu] = useState(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -37,17 +37,10 @@ const MenuBar = ({ theme, onLogout, onSave, onOpenSavedDashboards }) => {
   }, []);
 
   const fileMenuItems = [
-    { label: 'New File', shortcut: 'Ctrl+N' },
-    { label: 'New Window', shortcut: 'Ctrl+Shift+N' },
-    { label: 'Open Folder', shortcut: 'Ctrl+O' },
-    { label: 'New Folder', shortcut: '' },
-    { type: 'separator' },
+    { label: 'New', shortcut: 'Ctrl+N' },
+    { label: 'Open', shortcut: 'Ctrl+O' },
     { label: 'Save', shortcut: 'Ctrl+S' },
     { label: 'Save As', shortcut: 'Ctrl+Shift+S' },
-    { type: 'separator' },
-    { label: 'Share', shortcut: '' },
-    { label: 'Copy', shortcut: 'Ctrl+C' },
-    { label: 'Paste', shortcut: 'Ctrl+V' },
     { type: 'separator' },
     { label: 'Exit', shortcut: 'Alt+F4', action: 'exit' }
   ];
@@ -71,17 +64,22 @@ const MenuBar = ({ theme, onLogout, onSave, onOpenSavedDashboards }) => {
   ];
 
   const handleMenuItemClick = (item) => {
-    if (item.action === 'exit') {
-      setActiveMenu(null);
+    if (item.label === 'New') {
+      if (onNew) onNew();
     }
     if (item.label === 'Save') {
       if (onSave) onSave();
-      setActiveMenu(null);
     }
-    if (item.label === 'Saved Dashboard') {
+    if (item.label === 'Save As') {
+      if (onSaveAs) onSaveAs();
+    }
+    if (item.label === 'Open' || item.label === 'Saved Dashboard') {
       if (onOpenSavedDashboards) onOpenSavedDashboards();
-      setActiveMenu(null);
     }
+    if (item.label === 'Exit' || item.action === 'exit') {
+      if (onExit) onExit();
+    }
+    setActiveMenu(null);
   };
 
   const renderDropdownMenu = (items) => (
@@ -164,7 +162,12 @@ const MenuBar = ({ theme, onLogout, onSave, onOpenSavedDashboards }) => {
       transition: 'background-color 0.3s ease'
     }}>
       {/* Left side - Menu buttons */}
-      <div style={{ display: 'flex', gap: '8px' }} ref={menuRef}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }} ref={menuRef}>
+        {!isSaved && (
+          <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '18px', marginRight: '4px' }} title="Unsaved changes">
+            *
+          </span>
+        )}
         {/* File Menu */}
         <div style={{ position: 'relative' }}>
           <button

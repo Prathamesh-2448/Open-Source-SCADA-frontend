@@ -355,12 +355,21 @@ function JsonPopup({ nodes, edges, onClose, isDark, isLowCode, onSaveSuccess }) 
       return {
         id: n.id,
         type: n.data.nodeType,
+        position: n.position || { x: 0, y: 0 },
         data: fieldData,
       };
     }),
     edges: edges.map(e => ({
+      id: e.id,
       source: e.source,
       target: e.target,
+      sourceHandle: e.sourceHandle,
+      targetHandle: e.targetHandle,
+      type: e.type,
+      animated: e.animated,
+      markerEnd: e.markerEnd,
+      style: e.style,
+      data: { ...e.data, onDelete: undefined }
     })),
   };
 
@@ -585,7 +594,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
 
   /* ── Imperative Save Function for Parent ── */
   useImperativeHandle(ref, () => ({
-    triggerSave: async (deviceId) => {
+    triggerSave: async (dbMeta) => {
       const currentNodes = getNodes();
       const currentEdges = getEdges();
 
@@ -596,26 +605,44 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
           def.fields.forEach(f => {
             fieldData[f.k] = n.data.currentVals?.[f.k] ?? f.v;
           });
-          return { id: n.id, type: n.data.nodeType, data: fieldData };
+          return { id: n.id, type: n.data.nodeType, position: n.position || { x: 0, y: 0 }, data: fieldData };
         }),
-        edges: currentEdges.map(e => ({ source: e.source, target: e.target })),
+        edges: currentEdges.map(e => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+          type: e.type,
+          animated: e.animated,
+          markerEnd: e.markerEnd,
+          style: e.style,
+          data: { ...e.data, onDelete: undefined }
+        })),
       };
 
       try {
-        const url = `${BACKEND_URL}/dashboards/`;
+        const isUpdate = dbMeta && dbMeta.id;
+        const url = isUpdate ? `${BACKEND_URL}/dashboards/${dbMeta.id}` : `${BACKEND_URL}/dashboards/`;
+        const method = isUpdate ? 'PUT' : 'POST';
         const token = localStorage.getItem('scada-token');
         const res = await fetch(url, {
-          method: 'POST',
+          method,
           headers: {
             'Content-Type': 'application/json',
             'Authorization': token ? `Bearer ${token}` : ''
           },
           body: JSON.stringify({
-            name: `AutoSave - ${deviceId.trim()}`,
+            name: dbMeta.name || "AutoSave",
             layout_data: json
           }),
         });
-        return res.ok;
+
+        if (res.ok) {
+          const responseData = await res.json();
+          return responseData;
+        }
+        return false;
       } catch (err) {
         console.error("Save failed:", err);
         return false;
@@ -629,9 +656,37 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
     },
     loadCanvasData: (layoutData) => {
       if (!layoutData) return;
-      setRfNodes(layoutData.nodes || []);
-      setRfEdges(layoutData.edges || []);
-      processedIds.current = new Set((layoutData.nodes || []).map(n => n.id));
+      let parsed = typeof layoutData === 'string' ? JSON.parse(layoutData) : layoutData;
+
+      const nodesToLoad = (parsed.nodes || []).map(n => {
+        const isPlc = !!NODE_DEFS[n.type];
+        return {
+          id: n.id,
+          type: isPlc ? 'plcNode' : 'waterNode',
+          position: n.position || { x: 100, y: 100 },
+          data: {
+            nodeType: n.type,
+            currentVals: n.data || {},
+            initVals: n.data || {},
+            configuredParams: n.data?.configuredParams || n.configuredParams || [],
+            sensor_id: n.data?.sensor_id || n.sensor_id || '',
+            isLiveMode: false,
+            liveValues: {}
+          }
+        };
+      });
+
+      const edgesToLoad = (parsed.edges || []).map(e => ({
+        ...e,
+        data: {
+          ...e.data,
+          onDelete: onDeleteEdge
+        }
+      }));
+
+      setRfNodes(nodesToLoad);
+      setRfEdges(edgesToLoad);
+      processedIds.current = new Set(nodesToLoad.map(n => n.id));
     },
     openJsonPopup: () => {
       setShowJson(true);
@@ -674,6 +729,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
           data: {
             nodeType: n.nodeType,
             configuredParams: [],
+            sensor_id: '',
             liveValues: {},
             isLiveMode: false,
           },
@@ -704,10 +760,10 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
   }, [droppedNodes, screenToFlowPosition, makeValChange, setRfEdges, setRfNodes]);
 
   /* ── Save configured params for a node ── */
-  const handleSaveParams = useCallback((nodeId, params) => {
+  const handleSaveParams = useCallback((nodeId, params, sensorId) => {
     setRfNodes(prev => prev.map(n =>
       n.id === nodeId
-        ? { ...n, data: { ...n.data, configuredParams: params } }
+        ? { ...n, data: { ...n.data, configuredParams: params, sensor_id: sensorId } }
         : n
     ));
   }, []);
@@ -720,6 +776,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
       nodeId: node.id,
       nodeType: node.data.nodeType,
       currentParams: node.data.configuredParams || [],
+      currentSensorId: node.data.sensor_id || '',
     });
   }, [isLiveMode]);
 
@@ -894,60 +951,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
           </Panel>
         )}
 
-        {/* ── Top-right panel (hidden in live mode) ── */}
-        {!isLiveMode && (
-          <Panel position="top-right">
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
 
-              {/* Clear button */}
-              <button
-                onClick={() => {
-                  setRfNodes([]);
-                  setRfEdges([]);
-                  processedIds.current = new Set();
-                  if (onClear) onClear();
-                }}
-                style={{
-                  background: '#374151',
-                  color: '#e5e7eb',
-                  border: '1px solid #4b5563',
-                  borderRadius: '0.45rem',
-                  padding: '0.45rem 1rem',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'background 0.15s',
-                  letterSpacing: '0.02em',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#374151'; e.currentTarget.style.borderColor = '#4b5563'; e.currentTarget.style.color = '#e5e7eb'; }}
-              >
-                Clear
-              </button>
-              {/* Get JSON button */}
-              <button
-                onClick={() => setShowJson(true)}
-                style={{
-                  background: '#2563eb',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '0.45rem',
-                  padding: '0.45rem 1rem',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(37,99,235,0.4)',
-                  transition: 'background 0.15s',
-                  letterSpacing: '0.02em',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#1d4ed8'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#2563eb'; }}
-              >
-                Get JSON
-              </button>
-            </div>
-          </Panel>
-        )}
 
         {/* empty-state hint */}
         {rfNodes.length === 0 && !isLiveMode && (
@@ -1008,6 +1012,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
           nodeId={paramPopup.nodeId}
           nodeType={paramPopup.nodeType}
           currentParams={paramPopup.currentParams}
+          currentSensorId={paramPopup.currentSensorId}
           onSave={handleSaveParams}
           onClose={() => setParamPopup(null)}
           isDark={isDark}
