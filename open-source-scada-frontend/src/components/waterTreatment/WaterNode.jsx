@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Handle, Position } from 'reactflow';
 import { WT_COMPONENTS, ICONS, PORT_COLORS } from './WaterTreatmentData.jsx';
 
@@ -9,6 +9,49 @@ import { WT_COMPONENTS, ICONS, PORT_COLORS } from './WaterTreatmentData.jsx';
 ═══════════════════════════════════════════════════════════════════ */
 function WaterNode({ data, selected }) {
   const comp = WT_COMPONENTS[data.nodeType];
+  const [wsValues, setWsValues] = useState({});
+
+  useEffect(() => {
+    if (!data.sensor_id) {
+      setWsValues({});
+      return;
+    }
+
+    let ws = null;
+    let isMounted = true;
+
+    // Use a small delay to prevent React StrictMode double-mounts from
+    // instantly opening and closing TCP sockets (which causes "Invalid frame header" on the backend)
+    const timeout = setTimeout(() => {
+      if (!isMounted) return;
+      const token = (localStorage.getItem('scada-token') || '').trim();
+      const sensorId = encodeURIComponent(data.sensor_id.trim());
+      
+      ws = new WebSocket(`ws://localhost:5000/ws/stream/${sensorId}?token=${token}`);
+      
+      ws.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+          setWsValues(parsed);
+        } catch (err) {
+          console.error("WS Parse error", err);
+        }
+      };
+
+      ws.onerror = (err) => {
+        console.error("WebSocket Error:", err);
+      };
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        ws.close();
+      }
+    };
+  }, [data.sensor_id]);
+
   if (!comp) return <div>?</div>;
 
   const IconFn = ICONS[comp.icon];
@@ -32,6 +75,22 @@ function WaterNode({ data, selected }) {
 
   /* Does this node have any configured params? */
   const hasParams = configuredParams.length > 0;
+
+  /* Dynamically combine configured parameters with incoming WebSocket properties */
+  const displayParams = [...configuredParams];
+  Object.keys(wsValues).forEach(key => {
+    if (key === 'time') return; // Skip standard timestamp metadata visually
+    if (!displayParams.find(p => p.key === key)) {
+      displayParams.push({
+        key: key,
+        label: key.replace(/_/g, ' ').toUpperCase(),
+        unit: '',
+        decimals: typeof wsValues[key] === 'number' && !Number.isInteger(wsValues[key]) ? 2 : 0,
+      });
+    }
+  });
+
+  const hasDataToRender = displayParams.length > 0;
 
   return (
     <div style={{
@@ -145,7 +204,7 @@ function WaterNode({ data, selected }) {
       )}
 
       {/* ═══════════ PARAMETER DATA-FLASH BOXES ═══════════ */}
-      {hasParams && (
+      {hasDataToRender && (
         <div
           className="nodrag nopan"
           style={{
@@ -159,10 +218,10 @@ function WaterNode({ data, selected }) {
             lineHeight: 'normal',
           }}
         >
-          {configuredParams.map(param => {
-            const value = liveValues[param.key];
+          {displayParams.map(param => {
+            const value = wsValues[param.key] !== undefined ? wsValues[param.key] : liveValues[param.key];
             const displayVal = value !== undefined
-              ? (typeof value === 'number' ? value.toFixed(param.decimals) : value)
+              ? (typeof value === 'number' ? Number(value).toFixed(param.decimals) : value)
               : '—';
             const hasValue = value !== undefined;
 

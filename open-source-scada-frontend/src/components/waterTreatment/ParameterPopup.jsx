@@ -5,7 +5,7 @@ import { COMPONENT_PARAMETERS, WT_COMPONENTS, ICONS } from './WaterTreatmentData
    ParameterPopup — configure which live-data params to show
    on a water treatment node
 ═══════════════════════════════════════════════════════════════════ */
-export default function ParameterPopup({ nodeId, nodeType, currentParams, onSave, onClose, isDark }) {
+export default function ParameterPopup({ nodeId, nodeType, currentParams, currentSensorId, onSave, onClose, isDark }) {
   const available = COMPONENT_PARAMETERS[nodeType] || [];
   const comp = WT_COMPONENTS[nodeType];
   const IconFn = comp ? ICONS[comp.icon] : null;
@@ -18,6 +18,8 @@ export default function ParameterPopup({ nodeId, nodeType, currentParams, onSave
     return [];
   });
 
+  const [sensorId, setSensorId] = useState(currentSensorId || '');
+
   const toggle = (key) => {
     setSelected(prev =>
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
@@ -26,7 +28,7 @@ export default function ParameterPopup({ nodeId, nodeType, currentParams, onSave
 
   const handleSave = () => {
     const params = available.filter(p => selected.includes(p.key));
-    onSave(nodeId, params);
+    onSave(nodeId, params, sensorId);
     onClose();
   };
 
@@ -101,6 +103,29 @@ export default function ParameterPopup({ nodeId, nodeType, currentParams, onSave
               display: 'flex', alignItems: 'center',
             }}
           >×</button>
+        </div>
+
+        {/* Sensor ID Input */}
+        <div style={{
+          padding: '12px 18px 0',
+          display: 'flex', flexDirection: 'column', gap: 6,
+        }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: isDark ? '#94a3b8' : '#64748b' }}>
+            WebSocket Sensor ID
+          </label>
+          <input
+            type="text"
+            value={sensorId}
+            onChange={e => setSensorId(e.target.value)}
+            placeholder="e.g. Engine_01"
+            style={{
+              padding: '8px 12px', borderRadius: 8,
+              border: `1px solid ${isDark ? '#2a2d32' : '#e2e8f0'}`,
+              background: isDark ? '#1a1c20' : '#f8fafc',
+              color: isDark ? '#f1f5f9' : '#0f172a',
+              outline: 'none', fontSize: 13,
+            }}
+          />
         </div>
 
         {/* Parameter list */}

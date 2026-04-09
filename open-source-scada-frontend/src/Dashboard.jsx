@@ -20,9 +20,32 @@ export default function Dashboard({ onLogout }) {
   const [isSaved, setIsSaved]                 = useState(true);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [showSavedModal, setShowSavedModal]     = useState(false);
+  const [showExitModal, setShowExitModal]       = useState(false);
+  const [modalMode, setModalMode]             = useState('open');
   const [pendingNavId, setPendingNavId]       = useState(null);
+  const [currentDb, setCurrentDb]             = useState(null);
   const livePointer = useRef({ x:0, y:0 });
   const canvasRef   = useRef(null);
+
+  useEffect(() => {
+    // Load last dashboard layout state when component mounts
+    const savedLastState = localStorage.getItem('scada-last-dashboard');
+    if (savedLastState) {
+      try {
+        const parsedState = JSON.parse(savedLastState);
+        setTimeout(() => {
+          if (canvasRef.current) {
+            canvasRef.current.loadCanvasData(parsedState.layout_data);
+            setDroppedNodes(parsedState.layout_data.nodes || []);
+            setCurrentDb({ id: parsedState.id, name: parsedState.name });
+            setIsSaved(true);
+          }
+        }, 300);
+      } catch (e) {
+        console.error("Failed to restore last dashboard state:", e);
+      }
+    }
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint:{ distance:6 } }),
@@ -77,16 +100,54 @@ export default function Dashboard({ onLogout }) {
 
   const handleSave = async () => {
     if (canvasRef.current) {
-      const success = await canvasRef.current.triggerSave("manual-save");
+      if (!currentDb) {
+        setModalMode('saveAs');
+        setShowSavedModal(true);
+        return;
+      }
+      
+      const payloadMeta = currentDb;
+      const success = await canvasRef.current.triggerSave(payloadMeta);
       if (success) {
         setIsSaved(true);
+        alert("Dashboard updated successfully!");
+      } else {
+        alert("Failed to save dashboard.");
+      }
+    }
+  };
+
+  const handleSaveAsSubmit = async (newName) => {
+    if (canvasRef.current) {
+      const success = await canvasRef.current.triggerSave({ name: newName });
+      if (success) {
+        setIsSaved(true);
+        setCurrentDb({ id: success.id, name: newName });
+        localStorage.setItem('scada-last-dashboard', JSON.stringify({
+           id: success.id, name: newName, layout_data: canvasRef.current.getCanvasData()
+        }));
+        setShowSavedModal(false);
         alert("Dashboard saved successfully!");
       } else {
         alert("Failed to save dashboard.");
       }
     }
   };
-  const handleOpenSavedDashboards = () => setShowSavedModal(true);
+
+  const handleNew = () => {
+    setDroppedNodes([]);
+    setCurrentDb(null);
+    setIsSaved(true);
+    localStorage.removeItem('scada-last-dashboard');
+    if (canvasRef.current && canvasRef.current.loadCanvasData) {
+      canvasRef.current.loadCanvasData({ nodes: [], edges: [] });
+    }
+  };
+
+  const handleExit = () => {
+    window.close();
+    if (onLogout) onLogout();
+  };
 
   const handleSelectIndustry = useCallback((action) => {
     if (action === 'water_treatment') {
@@ -146,7 +207,11 @@ export default function Dashboard({ onLogout }) {
           theme={theme} 
           onLogout={onLogout} 
           onSave={handleSave} 
-          onOpenSavedDashboards={handleOpenSavedDashboards} 
+          onOpenSavedDashboards={() => { setModalMode('open'); setShowSavedModal(true); }}
+          onNew={handleNew}
+          onSaveAs={() => { setModalMode('saveAs'); setShowSavedModal(true); }}
+          onExit={() => setShowExitModal(true)}
+          isSaved={isSaved}
         />
 
         <div style={{ flex:1, position:'relative', overflow:'hidden', display:'flex' }}>
@@ -293,17 +358,73 @@ export default function Dashboard({ onLogout }) {
             `}</style>
           </div>
         )}
+        
+        {/* Exit Modal */}
+        {showExitModal && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+            animation: 'fadeIn 0.2s ease-out'
+          }}>
+            <div style={{
+              width: '400px', padding: '24px', borderRadius: '12px',
+              background: theme === 'dark' ? '#1a1a1a' : '#ffffff',
+              border: `1px solid ${theme === 'dark' ? '#333' : '#eee'}`,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+              textAlign: 'center'
+            }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 12px', color: theme === 'dark' ? '#fff' : '#111' }}>
+                Exit Application?
+              </h3>
+              <p style={{ fontSize: '14px', lineHeight: '1.5', margin: '0 0 24px', color: theme === 'dark' ? '#aaa' : '#666' }}>
+                Are you sure you want to exit? {!isSaved && "You have unsaved changes that will be lost."} 
+              </p>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={handleExit}
+                  style={{
+                    flex: 1, padding: '10px', borderRadius: '8px',
+                    background: '#ef4444', color: '#fff', border: 'none',
+                    fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}
+                >Force Exit</button>
+                <button
+                  onClick={() => setShowExitModal(false)}
+                  style={{
+                    flex: 1, padding: '10px', borderRadius: '8px',
+                    background: theme === 'dark' ? '#333' : '#f3f4f6',
+                    color: theme === 'dark' ? '#eee' : '#374151',
+                    border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}
+                >Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Dashboard Browser Modal */}
         {showSavedModal && (
           <DashboardListModal
             theme={theme}
+            mode={modalMode}
             onClose={() => setShowSavedModal(false)}
-            onLoad={(layoutData) => {
+            onSaveAs={handleSaveAsSubmit}
+            onLoad={(dbRecord) => {
               if (canvasRef.current) {
-                canvasRef.current.loadCanvasData(layoutData);
-                setDroppedNodes(layoutData.nodes || []);
+                let layoutData = dbRecord.layout_data;
+                let parsedLayout = typeof layoutData === 'string' ? JSON.parse(layoutData) : layoutData;
+                canvasRef.current.loadCanvasData(parsedLayout);
+                setDroppedNodes(parsedLayout.nodes || []);
+                setCurrentDb({ id: dbRecord.id, name: dbRecord.name });
                 setIsSaved(true);
                 setShowSavedModal(false);
+                localStorage.setItem('scada-last-dashboard', JSON.stringify({
+                  id: dbRecord.id,
+                  name: dbRecord.name,
+                  layout_data: parsedLayout
+                }));
               }
             }}
           />
@@ -316,10 +437,14 @@ export default function Dashboard({ onLogout }) {
 /* ═══════════════════════════════════════════════════════════
    DASHBOARD LIST MODAL
 ═══════════════════════════════════════════════════════════ */
-function DashboardListModal({ theme, onClose, onLoad }) {
+function DashboardListModal({ theme, onClose, onLoad, mode = 'open', onSaveAs }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedDb, setSelectedDb] = useState(null);
+  const [saveName, setSaveName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dbToDelete, setDbToDelete] = useState(null);
 
   useEffect(() => {
     const fetchList = async () => {
@@ -340,15 +465,40 @@ function DashboardListModal({ theme, onClose, onLoad }) {
     fetchList();
   }, []);
 
-  const handleDoubleclick = async (dbId) => {
+  const confirmDelete = async () => {
+    if (!dbToDelete) return;
     try {
       const token = localStorage.getItem('scada-token');
-      const res = await fetch(`http://localhost:5000/dashboards/${dbId}`, {
+      const res = await fetch(`http://localhost:5000/dashboards/${dbToDelete}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+      });
+      if (!res.ok) throw new Error("Failed to delete dashboard");
+      
+      setList(prev => prev.filter(db => db.id !== dbToDelete));
+      if (selectedDb === dbToDelete) setSelectedDb(null);
+      setDbToDelete(null);
+    } catch (err) {
+      alert("Error deleting dashboard: " + err.message);
+      setDbToDelete(null);
+    }
+  };
+
+  const filteredList = list.filter(db => 
+    db.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (db.description && db.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const handleLoadSelected = async () => {
+    if (!selectedDb) return;
+    try {
+      const token = localStorage.getItem('scada-token');
+      const res = await fetch(`http://localhost:5000/dashboards/${selectedDb}`, {
         headers: { 'Authorization': token ? `Bearer ${token}` : '' }
       });
       if (!res.ok) throw new Error("Failed to load dashboard data");
       const data = await res.json();
-      onLoad(data.layout_data);
+      onLoad(data);
     } catch (err) {
       alert("Error loading dashboard: " + err.message);
     }
@@ -383,37 +533,96 @@ function DashboardListModal({ theme, onClose, onLoad }) {
           }}>&times;</button>
         </div>
 
+        <div style={{ padding: '12px 24px', borderBottom: `1px solid ${theme === 'dark' ? '#27272a' : '#f4f4f5'}`, background: theme === 'dark' ? '#18181b' : '#fff' }}>
+          <input
+            type="text"
+            placeholder="Search dashboards..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: `1px solid ${theme === 'dark' ? '#3f3f46' : '#e4e4e7'}`,
+              background: theme === 'dark' ? '#27272a' : '#f4f4f5',
+              color: theme === 'dark' ? '#fafafa' : '#18181b',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: '#71717a' }}>Loading dashboards...</div>
           ) : error ? (
             <div style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>{error}</div>
-          ) : list.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#71717a' }}>No saved dashboards found.</div>
+          ) : filteredList.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#71717a' }}>
+              {list.length === 0 ? "No saved dashboards found." : "No dashboards match your search."}
+            </div>
           ) : (
             <div style={{ display: 'grid', gap: 8 }}>
-              {list.map(db => (
+              {filteredList.map(db => (
                 <div 
                   key={db.id}
-                  onDoubleClick={() => handleDoubleclick(db.id)}
+                  onClick={() => {
+                    setSelectedDb(db.id);
+                    if (mode === 'saveAs') setSaveName(db.name);
+                  }}
+                  onDoubleClick={() => {
+                    setSelectedDb(db.id);
+                    if (mode === 'saveAs') {
+                      setSaveName(db.name);
+                      setTimeout(() => onSaveAs(db.name), 0);
+                    } else {
+                      setTimeout(() => handleLoadSelected(), 0);
+                    }
+                  }}
                   style={{
                     padding: '12px 16px', borderRadius: 10,
                     cursor: 'pointer', userSelect: 'none',
-                    background: theme === 'dark' ? '#27272a' : '#f4f4f5',
-                    border: `1px solid ${theme === 'dark' ? '#3f3f46' : '#e4e4e7'}`,
+                    background: selectedDb === db.id ? (theme === 'dark' ? '#2a2a2e' : '#eff6ff') : (theme === 'dark' ? '#27272a' : '#f4f4f5'),
+                    border: `1px solid ${selectedDb === db.id ? '#3b82f6' : (theme === 'dark' ? '#3f3f46' : '#e4e4e7')}`,
                     transition: 'all 0.15s ease'
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = '#3b82f6';
-                    e.currentTarget.style.background = theme === 'dark' ? '#2a2a2e' : '#eff6ff';
+                    if (selectedDb !== db.id) {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.background = theme === 'dark' ? '#2a2a2e' : '#eff6ff';
+                    }
                   }}
                   onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = theme === 'dark' ? '#3f3f46' : '#e4e4e7';
-                    e.currentTarget.style.background = theme === 'dark' ? '#27272a' : '#f4f4f5';
+                    if (selectedDb !== db.id) {
+                      e.currentTarget.style.borderColor = theme === 'dark' ? '#3f3f46' : '#e4e4e7';
+                      e.currentTarget.style.background = theme === 'dark' ? '#27272a' : '#f4f4f5';
+                    }
                   }}
                 >
-                  <div style={{ fontWeight: 600, color: theme === 'dark' ? '#fafafa' : '#18181b', marginBottom: 4 }}>
-                    {db.name}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <div style={{ fontWeight: 600, color: theme === 'dark' ? '#fafafa' : '#18181b' }}>
+                      {db.name}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDbToDelete(db.id);
+                      }}
+                      title="Delete Dashboard"
+                      style={{
+                        background: 'transparent', border: 'none', color: '#ef4444',
+                        cursor: 'pointer', padding: '4px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: '4px', transition: 'background 0.2s', zIndex: 2
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = theme === 'dark' ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>
+                      </svg>
+                    </button>
                   </div>
                   <div style={{ fontSize: 11, color: '#71717a', display: 'flex', justifyContent: 'space-between' }}>
                     <span>{db.description || 'No description'}</span>
@@ -425,9 +634,82 @@ function DashboardListModal({ theme, onClose, onLoad }) {
           )}
         </div>
         
-        <div style={{ padding: '16px 24px', background: theme === 'dark' ? '#111113' : '#f9fafb', fontSize: 11, color: '#71717a' }}>
-          Double-click on a dashboard to load it.
+        <div style={{ 
+          padding: '16px 24px', background: theme === 'dark' ? '#111113' : '#f9fafb', 
+          display: 'flex', justifyContent: mode === 'saveAs' ? 'space-between' : 'flex-end', alignItems: 'center', gap: '12px', borderTop: `1px solid ${theme === 'dark' ? '#27272a' : '#f4f4f5'}`
+        }}>
+          {mode === 'saveAs' && (
+            <input 
+              type="text" 
+              placeholder="Dashboard Name..." 
+              value={saveName} 
+              onChange={e => setSaveName(e.target.value)} 
+              style={{
+                flex: 1, padding: '8px 12px', borderRadius: '6px', 
+                background: theme === 'dark' ? '#27272a' : '#fff',
+                color: theme === 'dark' ? '#fafafa' : '#18181b',
+                border: `1px solid ${theme === 'dark' ? '#3f3f46' : '#d1d5db'}`,
+                outline: 'none', maxWidth: '60%'
+              }}
+            />
+          )}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button onClick={onClose} style={{
+              padding: '8px 16px', borderRadius: '6px', cursor: 'pointer',
+              background: theme === 'dark' ? '#3f3f46' : '#e4e4e7',
+              color: theme === 'dark' ? '#fafafa' : '#18181b', border: 'none', fontWeight: 600
+            }}>Cancel</button>
+            {mode === 'open' ? (
+              <button onClick={handleLoadSelected} disabled={!selectedDb} style={{
+                padding: '8px 16px', borderRadius: '6px', cursor: selectedDb ? 'pointer' : 'not-allowed',
+                background: '#3b82f6', color: '#fff', border: 'none', fontWeight: 600,
+                opacity: selectedDb ? 1 : 0.5
+              }}>Load Dashboard</button>
+            ) : (
+              <button onClick={() => { if (saveName.trim()) onSaveAs(saveName.trim()); }} disabled={!saveName.trim()} style={{
+                padding: '8px 16px', borderRadius: '6px', cursor: saveName.trim() ? 'pointer' : 'not-allowed',
+                background: '#10b981', color: '#fff', border: 'none', fontWeight: 600,
+                opacity: saveName.trim() ? 1 : 0.5
+              }}>Save Dashboard</button>
+            )}
+          </div>
         </div>
+        
+        {/* Delete Confirmation Overlay */}
+        {dbToDelete !== null && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 12000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)'
+          }}>
+            <div style={{
+              width: '320px', padding: '20px', borderRadius: '10px',
+              background: theme === 'dark' ? '#27272a' : '#ffffff',
+              border: `1px solid ${theme === 'dark' ? '#3f3f46' : '#e4e4e7'}`,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+              textAlign: 'center'
+            }}>
+              <h3 style={{ margin: '0 0 10px', fontSize: '16px', color: theme === 'dark' ? '#fff' : '#111' }}>Delete Dashboard?</h3>
+              <p style={{ margin: '0 0 20px', fontSize: '14px', color: theme === 'dark' ? '#aaa' : '#666' }}>
+                Are you sure you want to permanently delete this dashboard? This action cannot be undone.
+              </p>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={confirmDelete}
+                  style={{
+                    flex: 1, padding: '8px', borderRadius: '6px', cursor: 'pointer',
+                    background: '#ef4444', color: '#fff', border: 'none', fontWeight: 600
+                  }}>Delete</button>
+                <button
+                  onClick={() => setDbToDelete(null)}
+                  style={{
+                    flex: 1, padding: '8px', borderRadius: '6px', cursor: 'pointer',
+                    background: theme === 'dark' ? '#3f3f46' : '#f3f4f6', color: theme === 'dark' ? '#eee' : '#374151', border: 'none', fontWeight: 600
+                  }}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
