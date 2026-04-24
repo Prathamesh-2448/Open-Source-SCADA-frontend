@@ -11,46 +11,71 @@ function WaterNode({ data, selected }) {
   const comp = WT_COMPONENTS[data.nodeType];
   const [wsValues, setWsValues] = useState({});
 
+  const configuredSensors = data.configuredSensors || [];
+  const isLive = data.isLiveMode || false;
+
   useEffect(() => {
-    if (!data.sensor_id) {
+    if (configuredSensors.length === 0) {
       setWsValues({});
       return;
     }
 
-    let ws = null;
+    const sockets = [];
     let isMounted = true;
 
-    // Use a small delay to prevent React StrictMode double-mounts from
-    // instantly opening and closing TCP sockets (which causes "Invalid frame header" on the backend)
+    // Use a small delay to prevent React StrictMode double-mounts
     const timeout = setTimeout(() => {
       if (!isMounted) return;
       const token = (localStorage.getItem('scada-token') || '').trim();
-      const sensorId = encodeURIComponent(data.sensor_id.trim());
-      
-      ws = new WebSocket(`ws://localhost:5000/ws/stream/${sensorId}?token=${token}`);
-      
-      ws.onmessage = (event) => {
-        try {
-          const parsed = JSON.parse(event.data);
-          setWsValues(parsed);
-        } catch (err) {
-          console.error("WS Parse error", err);
-        }
-      };
 
-      ws.onerror = (err) => {
-        console.error("WebSocket Error:", err);
-      };
+      configuredSensors.forEach(sensor => {
+        const sensorId = encodeURIComponent(sensor.id.trim());
+        const wsBase = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:5000';
+        const ws = new WebSocket(`${wsBase}/ws/stream/${sensorId}?token=${token}`);
+
+        ws.onopen = () => {
+          console.log(`[WS] Connected to ${sensorId}!`);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const parsed = JSON.parse(event.data);
+            // Assuming payload contains a 'value' field from IoT, or extract the first numeric field.
+            // Based on backend snippet: payload = { "sensor_id": sensor_id, "value": data } OR raw table data
+            const val = parsed.value !== undefined ? parsed.value : 
+                        Object.values(parsed).find(v => typeof v === 'number');
+            
+            setWsValues(prev => ({
+              ...prev,
+              [sensor.id]: val !== undefined ? val : '—'
+            }));
+          } catch (err) {
+            console.error("WS Parse error", err);
+          }
+        };
+
+        ws.onclose = (event) => {
+          console.log(`[WS] Closed for ${sensorId}. Code: ${event.code}`);
+        };
+
+        ws.onerror = (err) => {
+          console.error(`WebSocket Error for ${sensorId}:`, err);
+        };
+
+        sockets.push(ws);
+      });
     }, 250);
 
     return () => {
       isMounted = false;
       clearTimeout(timeout);
-      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-        ws.close();
-      }
+      sockets.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close();
+        }
+      });
     };
-  }, [data.sensor_id]);
+  }, [configuredSensors]);
 
   if (!comp) return <div>?</div>;
 
@@ -69,28 +94,7 @@ function WaterNode({ data, selected }) {
   });
 
   const ports = comp.ports || {};
-  const configuredParams = data.configuredParams || [];
-  const liveValues = data.liveValues || {};
-  const isLive = data.isLiveMode || false;
-
-  /* Does this node have any configured params? */
-  const hasParams = configuredParams.length > 0;
-
-  /* Dynamically combine configured parameters with incoming WebSocket properties */
-  const displayParams = [...configuredParams];
-  Object.keys(wsValues).forEach(key => {
-    if (key === 'time') return; // Skip standard timestamp metadata visually
-    if (!displayParams.find(p => p.key === key)) {
-      displayParams.push({
-        key: key,
-        label: key.replace(/_/g, ' ').toUpperCase(),
-        unit: '',
-        decimals: typeof wsValues[key] === 'number' && !Number.isInteger(wsValues[key]) ? 2 : 0,
-      });
-    }
-  });
-
-  const hasDataToRender = displayParams.length > 0;
+  const hasSensors = configuredSensors.length > 0;
 
   return (
     <div style={{
@@ -169,7 +173,7 @@ function WaterNode({ data, selected }) {
         </div>
 
         {/* ── Configured indicator badge ── */}
-        {hasParams && !isLive && (
+        {hasSensors && !isLive && (
           <div style={{
             marginTop: 3,
             fontSize: 8, fontWeight: 700, letterSpacing: '0.05em',
@@ -178,7 +182,7 @@ function WaterNode({ data, selected }) {
             padding: '1px 6px', borderRadius: 3,
             lineHeight: '14px',
           }}>
-            {configuredParams.length} PARAM{configuredParams.length > 1 ? 'S' : ''}
+            {configuredSensors.length} SENSOR{configuredSensors.length > 1 ? 'S' : ''}
           </div>
         )}
       </div>
@@ -203,8 +207,8 @@ function WaterNode({ data, selected }) {
         />
       )}
 
-      {/* ═══════════ PARAMETER DATA-FLASH BOXES ═══════════ */}
-      {hasDataToRender && (
+      {/* ═══════════ SENSOR DATA-FLASH BOXES ═══════════ */}
+      {hasSensors && (
         <div
           className="nodrag nopan"
           style={{
@@ -218,16 +222,14 @@ function WaterNode({ data, selected }) {
             lineHeight: 'normal',
           }}
         >
-          {displayParams.map(param => {
-            const value = wsValues[param.key] !== undefined ? wsValues[param.key] : liveValues[param.key];
-            const displayVal = value !== undefined
-              ? (typeof value === 'number' ? Number(value).toFixed(param.decimals) : value)
-              : '—';
-            const hasValue = value !== undefined;
+          {configuredSensors.map(sensor => {
+            const value = wsValues[sensor.id];
+            const hasValue = value !== undefined && value !== '—';
+            const displayVal = hasValue ? (typeof value === 'number' ? Number(value).toFixed(2) : value) : '—';
 
             return (
               <div
-                key={param.key}
+                key={sensor.id}
                 style={{
                   background: '#fff',
                   border: '1.5px solid #d1d5db',
@@ -243,7 +245,7 @@ function WaterNode({ data, selected }) {
                   borderColor: hasValue ? '#22c55e' : '#d1d5db',
                 }}
               >
-                {/* param label */}
+                {/* sensor id label */}
                 <div style={{
                   fontSize: 7, fontWeight: 600, color: '#64748b',
                   letterSpacing: '0.04em', textTransform: 'uppercase',
@@ -260,7 +262,7 @@ function WaterNode({ data, selected }) {
                       flexShrink: 0,
                     }} />
                   )}
-                  {param.label}
+                  {sensor.id}
                 </div>
                 {/* value */}
                 <div style={{
@@ -270,12 +272,12 @@ function WaterNode({ data, selected }) {
                   letterSpacing: '-0.02em',
                 }}>
                   {displayVal}
-                  {param.unit && (
+                  {sensor.unit && (
                     <span style={{
                       fontSize: 8, fontWeight: 500, color: '#94a3b8',
                       marginLeft: 2,
                     }}>
-                      {param.unit}
+                      {sensor.unit}
                     </span>
                   )}
                 </div>

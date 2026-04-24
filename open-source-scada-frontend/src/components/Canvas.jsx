@@ -14,7 +14,7 @@ import ParameterPopup from './waterTreatment/ParameterPopup';
 import { WT_COMPONENTS, COMPONENT_PARAMETERS } from './waterTreatment/WaterTreatmentData.jsx';
 
 /* ── Backend API base URL ── */
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 /* ═══════════════════════════════════════════════════════════
    COLOURS
@@ -33,7 +33,7 @@ const COLORS = {
 
 const TYPE_COLOR = {
   digital_input: 'blue', digital_output: 'blue', analog_output: 'blue',
-  modbus_read: 'gray', modbus_write: 'gray', websocket_upstream: 'gray',
+  modbus_read: 'gray', modbus_write: 'gray', websocket_ingress: 'gray', websocket_egress: 'gray',
   i2c_node: 'gray', spi_node: 'gray', uart_node: 'gray',
   and: 'purple', or: 'purple', not: 'purple',
   xor: 'purple', nand: 'purple', nor: 'purple',
@@ -66,9 +66,10 @@ const NODE_DEFS = {
   digital_input: { abbr: 'DI', label: 'Digital Input', fields: [{ k: 'pin', t: 'number', v: 4 }] },
   digital_output: { abbr: 'DO', label: 'Digital Output', fields: [{ k: 'pin', t: 'number', v: 17 }] },
   analog_output: { abbr: 'AO', label: 'Analog Output', fields: [{ k: 'pin', t: 'number', v: 1 }, { k: 'range', t: 'select', v: '0-10V', opts: '0-10V|4-20mA|0-5V' }] },
-  modbus_read: { abbr: 'MBR', label: 'Modbus Read', fields: [{ k: 'slave_id', t: 'number', v: 1 }, { k: 'fn_code', t: 'select', v: '03', opts: '01|02|03|04' }, { k: 'register', t: 'number', v: 0 }, { k: 'data_type', t: 'select', v: 'Int16', opts: 'Boolean|Int16|Uint16|Float32' }, { k: 'poll_rate', t: 'number', v: 1 }] },
-  modbus_write: { abbr: 'MBW', label: 'Modbus Write', fields: [{ k: 'slave_id', t: 'number', v: 1 }, { k: 'fn_code', t: 'select', v: '06', opts: '05|06|16' }, { k: 'register', t: 'number', v: 0 }, { k: 'trigger', t: 'select', v: 'On Change', opts: 'On Change|Continuous' }] },
-  websocket_upstream: { abbr: 'WSU', label: 'WebSocket Upstream', fields: [{ k: 'url', t: 'text', v: 'ws://host/ws' }, { k: 'topic', t: 'text', v: 'sensor/data' }, { k: 'interval', t: 'number', v: 1 }] },
+  modbus_read: { abbr: 'MBR', label: 'Modbus Read', fields: [{ k: 'slave_id', t: 'number', v: 1 }, { k: 'fn_code', t: 'select', v: '03', opts: '01|02|03|04' }, { k: 'register_address', t: 'number', v: 40001 }, { k: 'data_type', t: 'select', v: 'Int16', opts: 'Boolean|Int16|Uint16|Float32' }, { k: 'poll_rate', t: 'number', v: 1 }] },
+  modbus_write: { abbr: 'MBW', label: 'Modbus Write', fields: [{ k: 'slave_id', t: 'number', v: 1 }, { k: 'fn_code', t: 'select', v: '06', opts: '05|06|16' }, { k: 'register_address', t: 'number', v: 40001 }, { k: 'trigger', t: 'select', v: 'On Change', opts: 'On Change|Continuous' }] },
+  websocket_ingress: { abbr: 'WSI', label: 'WebSocket Ingress', fields: [{ k: 'domain_name', t: 'text', v: import.meta.env.VITE_WS_DOMAIN_NAME || 'localhost:5000' }, { k: 'sensor_id', t: 'text', v: 'Engine_01' }] },
+  websocket_egress: { abbr: 'WSE', label: 'WebSocket Egress', fields: [{ k: 'domain_name', t: 'text', v: import.meta.env.VITE_WS_DOMAIN_NAME || 'localhost:5000' }, { k: 'sensor_id', t: 'text', v: 'Remote_Pi_Sensor' }] },
   i2c_node: { abbr: 'I2C', label: 'I2C Node', fields: [{ k: 'addr', t: 'text', v: '0x48' }, { k: 'reg', t: 'number', v: 0 }] },
   spi_node: { abbr: 'SPI', label: 'SPI Node', fields: [{ k: 'cs_pin', t: 'number', v: 8 }, { k: 'clk_hz', t: 'number', v: 1000000 }] },
   uart_node: { abbr: 'UART', label: 'UART Node', fields: [{ k: 'baud', t: 'number', v: 9600 }, { k: 'parity', t: 'select', v: 'N', opts: 'N|E|O' }] },
@@ -97,7 +98,7 @@ const NODE_DEFS = {
   debounce: { abbr: 'DEB', label: 'Debounce Filter', fields: [{ k: 'delay', t: 'number', v: 0.1 }] },
   watchdog_timer: { abbr: 'WDT', label: 'Watchdog Timer', fields: [{ k: 'timeout', t: 'number', v: 5 }] },
   rtc_node: { abbr: 'RTC', label: 'Real-Time Clock', fields: [{ k: 'trigger', t: 'text', v: 'HH:MM' }] },
-  threshold: { abbr: 'THR', label: 'Threshold', fields: [{ k: 'op', t: 'select', v: '>', opts: '>|<|>=|<=|==|!=' }, { k: 'value', t: 'number', v: 50 }] },
+  threshold: { abbr: 'THR', label: 'Threshold', fields: [{ k: 'operator', t: 'select', v: '>=', opts: '>|<|>=|<=|==|!=' }, { k: 'value', t: 'number', v: 50 }] },
   pid_controller: { abbr: 'PID', label: 'PID Controller', fields: [{ k: 'kp', t: 'number', v: 1 }, { k: 'ki', t: 'number', v: 0.1 }, { k: 'kd', t: 'number', v: 0.01 }, { k: 'sp', t: 'number', v: 100 }] },
   scale_map: { abbr: 'MAP', label: 'Scale Map', fields: [{ k: 'in_min', t: 'number', v: 0 }, { k: 'in_max', t: 'number', v: 1023 }, { k: 'out_min', t: 'number', v: 0 }, { k: 'out_max', t: 'number', v: 100 }] },
   moving_average: { abbr: 'AVG', label: 'Moving Average', fields: [{ k: 'window', t: 'number', v: 10 }] },
@@ -352,25 +353,52 @@ function JsonPopup({ nodes, edges, onClose, isDark, isLowCode, onSaveSuccess }) 
       def.fields.forEach(f => {
         fieldData[f.k] = n.data.currentVals?.[f.k] ?? f.v;
       });
-      return {
+
+      if (n.data.nodeType === 'websocket_ingress' || n.data.nodeType === 'websocket_egress') {
+        const token = localStorage.getItem('scada-token') || '';
+        const domain = fieldData.domain_name || import.meta.env.VITE_WS_DOMAIN_NAME || 'localhost:5000';
+        const sensor = fieldData.sensor_id || 'Unknown';
+
+        if (n.data.nodeType === 'websocket_ingress') {
+          fieldData.url = `ws://${domain}/ws/stream/${sensor}?token=${token}`;
+        } else {
+          fieldData.url = `ws://${domain}/ws/sensor?token=${token}`;
+        }
+        delete fieldData.domain_name;
+      }
+      const baseNode = {
         id: n.id,
         type: n.data.nodeType,
-        position: n.position || { x: 0, y: 0 },
         data: fieldData,
       };
+
+      if (!isLowCode) {
+        baseNode.position = n.position || { x: 0, y: 0 };
+      }
+
+      return baseNode;
     }),
-    edges: edges.map(e => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      sourceHandle: e.sourceHandle,
-      targetHandle: e.targetHandle,
-      type: e.type,
-      animated: e.animated,
-      markerEnd: e.markerEnd,
-      style: e.style,
-      data: { ...e.data, onDelete: undefined }
-    })),
+    edges: edges.map(e => {
+      if (isLowCode) {
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+        };
+      }
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        type: e.type,
+        animated: e.animated,
+        markerEnd: e.markerEnd,
+        style: e.style,
+        data: { ...e.data, onDelete: undefined }
+      };
+    }),
   };
 
   const text = JSON.stringify(json, null, 2);
@@ -600,6 +628,15 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
 
       const json = {
         nodes: currentNodes.map(n => {
+          if (n.type === 'waterNode') {
+            return {
+              id: n.id,
+              type: n.data.nodeType,
+              position: n.position || { x: 0, y: 0 },
+              data: { configuredSensors: n.data.configuredSensors || [] }
+            };
+          }
+
           const def = NODE_DEFS[n.data.nodeType] ?? { fields: [] };
           const fieldData = {};
           def.fields.forEach(f => {
@@ -668,8 +705,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
             nodeType: n.type,
             currentVals: n.data || {},
             initVals: n.data || {},
-            configuredParams: n.data?.configuredParams || n.configuredParams || [],
-            sensor_id: n.data?.sensor_id || n.sensor_id || '',
+            configuredSensors: n.data?.configuredSensors || n.configuredSensors || [],
             isLiveMode: false,
             liveValues: {}
           }
@@ -728,8 +764,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
           position: pos,
           data: {
             nodeType: n.nodeType,
-            configuredParams: [],
-            sensor_id: '',
+            configuredSensors: [],
             liveValues: {},
             isLiveMode: false,
           },
@@ -760,10 +795,10 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
   }, [droppedNodes, screenToFlowPosition, makeValChange, setRfEdges, setRfNodes]);
 
   /* ── Save configured params for a node ── */
-  const handleSaveParams = useCallback((nodeId, params, sensorId) => {
+  const handleSaveParams = useCallback((nodeId, sensors) => {
     setRfNodes(prev => prev.map(n =>
       n.id === nodeId
-        ? { ...n, data: { ...n.data, configuredParams: params, sensor_id: sensorId } }
+        ? { ...n, data: { ...n.data, configuredSensors: sensors } }
         : n
     ));
   }, []);
@@ -775,8 +810,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
     setParamPopup({
       nodeId: node.id,
       nodeType: node.data.nodeType,
-      currentParams: node.data.configuredParams || [],
-      currentSensorId: node.data.sensor_id || '',
+      currentSensors: node.data.configuredSensors || [],
     });
   }, [isLiveMode]);
 
@@ -794,8 +828,8 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
       liveIntervalRef.current = setInterval(() => {
         setRfNodes(prev => prev.map(n => {
           if (n.type !== 'waterNode') return n;
-          const params = n.data.configuredParams || [];
-          if (params.length === 0) return n;
+          const sensors = n.data.configuredSensors || [];
+          if (sensors.length === 0) return n;
 
           const prevValues = n.data.liveValues || {};
           const newValues = {};
@@ -951,6 +985,33 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
           </Panel>
         )}
 
+        {/* ── LOW CODE DEPLOY BUTTON ── */}
+        {isLowCode && (
+          <Panel position="top-right">
+            <button
+              onClick={() => setShowJson(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: isDark ? '#2563eb' : '#3b82f6',
+                color: '#fff', border: 'none', borderRadius: 8,
+                padding: '8px 16px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = isDark ? '#1d4ed8' : '#2563eb'}
+              onMouseLeave={e => e.currentTarget.style.background = isDark ? '#2563eb' : '#3b82f6'}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+                <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+                <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+                <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+              </svg>
+              Deploy
+            </button>
+          </Panel>
+        )}
+
 
 
         {/* empty-state hint */}
@@ -1011,8 +1072,7 @@ const InnerCanvas = forwardRef(({ theme, droppedNodes, activeConnectionType, onC
         <ParameterPopup
           nodeId={paramPopup.nodeId}
           nodeType={paramPopup.nodeType}
-          currentParams={paramPopup.currentParams}
-          currentSensorId={paramPopup.currentSensorId}
+          currentSensors={paramPopup.currentSensors}
           onSave={handleSaveParams}
           onClose={() => setParamPopup(null)}
           isDark={isDark}

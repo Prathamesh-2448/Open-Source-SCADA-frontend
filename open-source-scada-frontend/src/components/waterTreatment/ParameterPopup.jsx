@@ -1,34 +1,41 @@
 import React, { useState } from 'react';
-import { COMPONENT_PARAMETERS, WT_COMPONENTS, ICONS } from './WaterTreatmentData.jsx';
+import { WT_COMPONENTS, ICONS } from './WaterTreatmentData.jsx';
 
 /* ═══════════════════════════════════════════════════════════════════
-   ParameterPopup — configure which live-data params to show
-   on a water treatment node
+   ParameterPopup — configure multiple WS sensor endpoints per node
 ═══════════════════════════════════════════════════════════════════ */
-export default function ParameterPopup({ nodeId, nodeType, currentParams, currentSensorId, onSave, onClose, isDark }) {
-  const available = COMPONENT_PARAMETERS[nodeType] || [];
+export default function ParameterPopup({ nodeId, nodeType, currentSensors, onSave, onClose, isDark }) {
   const comp = WT_COMPONENTS[nodeType];
   const IconFn = comp ? ICONS[comp.icon] : null;
 
-  /* initialise from currentParams or empty */
-  const [selected, setSelected] = useState(() => {
-    if (currentParams && currentParams.length > 0) {
-      return currentParams.map(p => p.key);
-    }
-    return [];
-  });
+  /* array of { id: string, unit: string } */
+  const [customSensors, setCustomSensors] = useState(currentSensors || []);
+  
+  const [newSensorId, setNewSensorId] = useState('');
+  const [newUnit, setNewUnit] = useState('');
 
-  const [sensorId, setSensorId] = useState(currentSensorId || '');
+  const handleAddSensor = () => {
+    if (!newSensorId.trim()) return;
+    const id = newSensorId.trim();
+    
+    // Don't add duplicate IDs
+    if (customSensors.find(s => s.id === id)) return;
+    
+    setCustomSensors([...customSensors, {
+      id: id,
+      unit: newUnit.trim()
+    }]);
+    
+    setNewSensorId('');
+    setNewUnit('');
+  };
 
-  const toggle = (key) => {
-    setSelected(prev =>
-      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-    );
+  const handleRemoveSensor = (idToRemove) => {
+    setCustomSensors(customSensors.filter(s => s.id !== idToRemove));
   };
 
   const handleSave = () => {
-    const params = available.filter(p => selected.includes(p.key));
-    onSave(nodeId, params, sensorId);
+    onSave(nodeId, customSensors);
     onClose();
   };
 
@@ -50,7 +57,7 @@ export default function ParameterPopup({ nodeId, nodeType, currentParams, curren
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width: 'min(420px, 90vw)',
+          width: 'min(460px, 95vw)',
           background: isDark ? '#111214' : '#ffffff',
           border: `1px solid ${isDark ? '#2a2d32' : '#e2e8f0'}`,
           borderRadius: 16,
@@ -66,7 +73,6 @@ export default function ParameterPopup({ nodeId, nodeType, currentParams, curren
           display: 'flex', alignItems: 'center', gap: 12,
           background: isDark ? '#111214' : '#f8fafc',
         }}>
-          {/* Icon thumbnail */}
           {IconFn && (
             <div style={{
               width: 44, height: 44, borderRadius: 10, flexShrink: 0,
@@ -91,7 +97,7 @@ export default function ParameterPopup({ nodeId, nodeType, currentParams, curren
               fontSize: 11, color: isDark ? '#64748b' : '#94a3b8',
               marginTop: 2,
             }}>
-              Configure live data parameters
+              Configure WebSocket Sensor Streams
             </div>
           </div>
           <button
@@ -105,147 +111,137 @@ export default function ParameterPopup({ nodeId, nodeType, currentParams, curren
           >×</button>
         </div>
 
-        {/* Sensor ID Input */}
-        <div style={{
-          padding: '12px 18px 0',
-          display: 'flex', flexDirection: 'column', gap: 6,
-        }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: isDark ? '#94a3b8' : '#64748b' }}>
-            WebSocket Sensor ID
+        {/* Custom Sensors Section */}
+        <div style={{ padding: '16px 18px 6px' }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: isDark ? '#94a3b8' : '#64748b', display: 'block', marginBottom: 8 }}>
+            Add WebSocket Endpoints
           </label>
-          <input
-            type="text"
-            value={sensorId}
-            onChange={e => setSensorId(e.target.value)}
-            placeholder="e.g. Engine_01"
-            style={{
-              padding: '8px 12px', borderRadius: 8,
-              border: `1px solid ${isDark ? '#2a2d32' : '#e2e8f0'}`,
-              background: isDark ? '#1a1c20' : '#f8fafc',
-              color: isDark ? '#f1f5f9' : '#0f172a',
-              outline: 'none', fontSize: 13,
-            }}
-          />
-        </div>
+          
+          {/* Add New Sensor */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <input
+              type="text"
+              value={newSensorId}
+              onChange={e => setNewSensorId(e.target.value)}
+              placeholder="Sensor ID (e.g. Tank_01)"
+              onKeyDown={e => e.key === 'Enter' && handleAddSensor()}
+              style={{
+                flex: 2, padding: '8px 12px', borderRadius: 8,
+                border: `1px solid ${isDark ? '#2a2d32' : '#e2e8f0'}`,
+                background: isDark ? '#1a1c20' : '#f8fafc',
+                color: isDark ? '#f1f5f9' : '#0f172a',
+                outline: 'none', fontSize: 13,
+              }}
+            />
+            <input
+              type="text"
+              value={newUnit}
+              onChange={e => setNewUnit(e.target.value)}
+              placeholder="Unit (e.g. °C)"
+              onKeyDown={e => e.key === 'Enter' && handleAddSensor()}
+              style={{
+                flex: 1, padding: '8px 12px', borderRadius: 8,
+                border: `1px solid ${isDark ? '#2a2d32' : '#e2e8f0'}`,
+                background: isDark ? '#1a1c20' : '#f8fafc',
+                color: isDark ? '#f1f5f9' : '#0f172a',
+                outline: 'none', fontSize: 13,
+              }}
+            />
+            <button
+              onClick={handleAddSensor}
+              style={{
+                width: 36, flexShrink: 0, borderRadius: 8,
+                background: catColor, border: 'none',
+                color: '#fff', fontSize: 18, fontWeight: 'bold',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: `0 2px 8px ${catColor}40`,
+              }}
+            >
+              +
+            </button>
+          </div>
 
-        {/* Parameter list */}
-        <div style={{
-          padding: '12px 18px 6px',
-          maxHeight: 320, overflowY: 'auto',
-        }}>
-          {available.length === 0 ? (
-            <div style={{
-              textAlign: 'center', padding: 24,
-              color: isDark ? '#475569' : '#94a3b8', fontSize: 13,
-            }}>
-              No parameters available for this component.
-            </div>
-          ) : (
-            available.map(param => {
-              const isOn = selected.includes(param.key);
-              return (
+          {/* List of Added Sensors */}
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {customSensors.length === 0 ? (
+              <div style={{
+                textAlign: 'center', padding: 16,
+                color: isDark ? '#475569' : '#94a3b8', fontSize: 13,
+              }}>
+                No sensor endpoints added yet.
+              </div>
+            ) : (
+              customSensors.map(sensor => (
                 <div
-                  key={param.key}
-                  onClick={() => toggle(param.key)}
+                  key={sensor.id}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 12px', borderRadius: 10, marginBottom: 6,
-                    cursor: 'pointer',
-                    background: isOn
-                      ? (isDark ? `${catColor}15` : `${catColor}10`)
-                      : (isDark ? '#151618' : '#fafafa'),
-                    border: `1.5px solid ${isOn ? catColor + '60' : (isDark ? '#1e2025' : '#e8ecf0')}`,
-                    transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 12px', borderRadius: 8, marginBottom: 6,
+                    background: isDark ? '#151618' : '#fafafa',
+                    border: `1px solid ${isDark ? '#1e2025' : '#e8ecf0'}`,
                   }}
                 >
-                  {/* Toggle switch */}
-                  <div style={{
-                    width: 38, height: 20, borderRadius: 10, flexShrink: 0,
-                    background: isOn ? catColor : (isDark ? '#2a2d32' : '#d1d5db'),
-                    position: 'relative',
-                    transition: 'background 0.2s',
-                  }}>
-                    <div style={{
-                      width: 16, height: 16, borderRadius: '50%',
-                      background: '#fff',
-                      position: 'absolute', top: 2,
-                      left: isOn ? 20 : 2,
-                      transition: 'left 0.2s',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                    }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: isDark ? '#e2e8f0' : '#1e293b' }}>
+                      {sensor.id}
+                    </div>
+                    {sensor.unit && (
+                      <div style={{ fontSize: 11, color: isDark ? '#64748b' : '#94a3b8' }}>
+                        Unit: {sensor.unit}
+                      </div>
+                    )}
                   </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: 13, fontWeight: 600,
-                      color: isDark ? '#e2e8f0' : '#1e293b',
-                    }}>
-                      {param.label}
-                    </div>
-                    <div style={{
-                      fontSize: 10, color: isDark ? '#64748b' : '#94a3b8',
-                      marginTop: 1,
-                    }}>
-                      {param.unit ? `Unit: ${param.unit}` : 'Unitless'} · Range: {param.min}–{param.max}
-                    </div>
-                  </div>
-
-                  {isOn && (
-                    <div style={{
-                      fontSize: 9, fontWeight: 700, color: catColor,
-                      background: `${catColor}20`, padding: '2px 6px',
-                      borderRadius: 4, letterSpacing: '0.05em',
-                    }}>
-                      ACTIVE
-                    </div>
-                  )}
+                  <button
+                    onClick={() => handleRemoveSensor(sensor.id)}
+                    style={{
+                      background: 'none', border: 'none',
+                      color: '#ef4444', fontSize: 20, cursor: 'pointer',
+                      padding: '0 4px', lineHeight: 1
+                    }}
+                    title="Remove"
+                  >
+                    ×
+                  </button>
                 </div>
-              );
-            })
-          )}
+              ))
+            )}
+          </div>
         </div>
 
         {/* Footer */}
         <div style={{
           padding: '12px 18px 16px',
           borderTop: `1px solid ${isDark ? '#1e2025' : '#f1f5f9'}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
           gap: 8,
         }}>
-          <div style={{
-            fontSize: 11, color: isDark ? '#475569' : '#94a3b8',
-          }}>
-            {selected.length} of {available.length} selected
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={onClose}
-              style={{
-                padding: '8px 18px', borderRadius: 8,
-                background: isDark ? '#1a1c20' : '#f1f5f9',
-                border: `1px solid ${isDark ? '#2a2d32' : '#e2e8f0'}`,
-                color: isDark ? '#94a3b8' : '#64748b',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              style={{
-                padding: '8px 22px', borderRadius: 8,
-                background: catColor,
-                border: 'none',
-                color: '#fff',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                boxShadow: `0 2px 10px ${catColor}50`,
-                transition: 'all 0.15s',
-              }}
-            >
-              Save Parameters
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '8px 18px', borderRadius: 8,
+              background: isDark ? '#1a1c20' : '#f1f5f9',
+              border: `1px solid ${isDark ? '#2a2d32' : '#e2e8f0'}`,
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            style={{
+              padding: '8px 22px', borderRadius: 8,
+              background: catColor,
+              border: 'none',
+              color: '#fff',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              boxShadow: `0 2px 10px ${catColor}50`,
+              transition: 'all 0.15s',
+            }}
+          >
+            Save Endpoints
+          </button>
         </div>
       </div>
 

@@ -450,7 +450,7 @@ function DashboardListModal({ theme, onClose, onLoad, mode = 'open', onSaveAs })
     const fetchList = async () => {
       try {
         const token = localStorage.getItem('scada-token');
-        const res = await fetch('http://localhost:5000/dashboards/', {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/dashboards/`, {
           headers: { 'Authorization': token ? `Bearer ${token}` : '' }
         });
         if (!res.ok) throw new Error("Failed to load list");
@@ -469,7 +469,7 @@ function DashboardListModal({ theme, onClose, onLoad, mode = 'open', onSaveAs })
     if (!dbToDelete) return;
     try {
       const token = localStorage.getItem('scada-token');
-      const res = await fetch(`http://localhost:5000/dashboards/${dbToDelete}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/dashboards/${dbToDelete}`, {
         method: 'DELETE',
         headers: { 'Authorization': token ? `Bearer ${token}` : '' }
       });
@@ -493,7 +493,7 @@ function DashboardListModal({ theme, onClose, onLoad, mode = 'open', onSaveAs })
     if (!selectedDb) return;
     try {
       const token = localStorage.getItem('scada-token');
-      const res = await fetch(`http://localhost:5000/dashboards/${selectedDb}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/dashboards/${selectedDb}`, {
         headers: { 'Authorization': token ? `Bearer ${token}` : '' }
       });
       if (!res.ok) throw new Error("Failed to load dashboard data");
