@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import Sidebar from "../components/layout/Sidebar/Sidebar";
 import api from "../services/api";
-import "./Auth.css";
+import "./auth.css";
 
 export default function Login({ onLogin }) {
     const navigate = useNavigate();
