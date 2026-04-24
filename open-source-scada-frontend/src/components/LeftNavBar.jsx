@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { LayoutDashboard, Activity, Code, Sun, Moon } from 'lucide-react';
 
-const LeftNavBar = ({ onNavClick, activePanel, theme, onThemeToggle }) => {
+const LeftNavBar = ({ onNavClick, activePanel, theme, onThemeToggle, isLiveMode }) => {
   const [hoveredIcon, setHoveredIcon] = useState(null);
 
   const navItems = [
@@ -29,7 +29,8 @@ const LeftNavBar = ({ onNavClick, activePanel, theme, onThemeToggle }) => {
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
         {navItems.map((item) => {
-          const isActive = activePanel === item.id;
+          const isActive = (item.id === 'live') ? isLiveMode : (activePanel === item.id);
+          const isLiveBtn = item.id === 'live';
           return (
             <div
               key={item.id}
@@ -43,13 +44,14 @@ const LeftNavBar = ({ onNavClick, activePanel, theme, onThemeToggle }) => {
                 style={{
                   backgroundColor: isActive ? activeBg : 'transparent',
                   border: 'none',
-                  color: isActive ? (isDark ? '#60a5fa' : '#185FA5') : iconCol,
+                  color: isActive ? (isLiveBtn ? '#10b981' : (isDark ? '#60a5fa' : '#185FA5')) : iconCol,
                   cursor: 'pointer',
                   width: '44px', height: '44px',
                   borderRadius: '8px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'all 0.15s',
-                  borderLeft: isActive ? `3px solid ${isDark ? '#60a5fa' : '#185FA5'}` : '3px solid transparent',
+                  borderLeft: isActive ? `3px solid ${isLiveBtn ? '#10b981' : (isDark ? '#60a5fa' : '#185FA5')}` : '3px solid transparent',
+                  boxShadow: (isLiveBtn && isActive) ? '0 0 12px rgba(16,185,129,0.3)' : 'none',
                 }}
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = hoverBg; }}
                 onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}

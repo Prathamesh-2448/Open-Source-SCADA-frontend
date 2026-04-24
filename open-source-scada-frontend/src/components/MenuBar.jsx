@@ -1,11 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, User } from 'lucide-react';
 
-const MenuBar = ({ theme }) => {
+const MenuBar = ({ theme, onLogout, onSave, onOpenSavedDashboards, onNew, onSaveAs, onExit, isSaved }) => {
   const [activeMenu, setActiveMenu] = useState(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const userMenuRef = useRef(null);
+  const [currentUser, setCurrentUser] = useState("User");
+
+  useEffect(() => {
+    // Get user info from localStorage
+    const savedUser = localStorage.getItem('scada-user');
+    if (savedUser) {
+      try {
+        const userObj = JSON.parse(savedUser);
+        setCurrentUser(userObj.username || "User");
+      } catch (e) {
+        console.error("Error parsing user info:", e);
+      }
+    }
+  }, []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -23,17 +37,10 @@ const MenuBar = ({ theme }) => {
   }, []);
 
   const fileMenuItems = [
-    { label: 'New File', shortcut: 'Ctrl+N' },
-    { label: 'New Window', shortcut: 'Ctrl+Shift+N' },
-    { label: 'Open Folder', shortcut: 'Ctrl+O' },
-    { label: 'New Folder', shortcut: '' },
-    { type: 'separator' },
+    { label: 'New', shortcut: 'Ctrl+N' },
+    { label: 'Open', shortcut: 'Ctrl+O' },
     { label: 'Save', shortcut: 'Ctrl+S' },
     { label: 'Save As', shortcut: 'Ctrl+Shift+S' },
-    { type: 'separator' },
-    { label: 'Share', shortcut: '' },
-    { label: 'Copy', shortcut: 'Ctrl+C' },
-    { label: 'Paste', shortcut: 'Ctrl+V' },
     { type: 'separator' },
     { label: 'Exit', shortcut: 'Alt+F4', action: 'exit' }
   ];
@@ -53,15 +60,26 @@ const MenuBar = ({ theme }) => {
     { label: 'New Project', shortcut: 'Ctrl+Shift+P' },
     { label: 'Open Project', shortcut: 'Ctrl+Shift+O' },
     { type: 'separator' },
-    { label: 'Project Settings', shortcut: '' },
     { label: 'Close Project', shortcut: '' }
   ];
 
   const handleMenuItemClick = (item) => {
-    if (item.action === 'exit') {
-      setActiveMenu(null);
+    if (item.label === 'New') {
+      if (onNew) onNew();
     }
-    // Add other actions here as needed
+    if (item.label === 'Save') {
+      if (onSave) onSave();
+    }
+    if (item.label === 'Save As') {
+      if (onSaveAs) onSaveAs();
+    }
+    if (item.label === 'Open' || item.label === 'Saved Dashboard') {
+      if (onOpenSavedDashboards) onOpenSavedDashboards();
+    }
+    if (item.label === 'Exit' || item.action === 'exit') {
+      if (onExit) onExit();
+    }
+    setActiveMenu(null);
   };
 
   const renderDropdownMenu = (items) => (
@@ -144,7 +162,12 @@ const MenuBar = ({ theme }) => {
       transition: 'background-color 0.3s ease'
     }}>
       {/* Left side - Menu buttons */}
-      <div style={{ display: 'flex', gap: '8px' }} ref={menuRef}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }} ref={menuRef}>
+        {!isSaved && (
+          <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '18px', marginRight: '4px' }} title="Unsaved changes">
+            *
+          </span>
+        )}
         {/* File Menu */}
         <div style={{ position: 'relative' }}>
           <button
@@ -270,7 +293,7 @@ const MenuBar = ({ theme }) => {
           }}
         >
           <User size={18} />
-          <span style={{ fontSize: '13px' }}>User</span>
+          <span style={{ fontSize: '13px' }}>{currentUser}</span>
           <ChevronDown size={14} />
         </div>
 
@@ -318,7 +341,7 @@ const MenuBar = ({ theme }) => {
             />
             <div
               onClick={() => {
-                console.log('Logout clicked');
+                if (onLogout) onLogout();
                 setUserMenuOpen(false);
               }}
               style={{
